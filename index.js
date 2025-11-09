@@ -1,116 +1,139 @@
 import express from "express";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import chromium from "@sparticuz/chromium";
+
+import { findAddressCoords } from "./utils/addressPoints.js";
 import { getZoning } from "./utils/zoning.js";
 import { getOverlays } from "./utils/overlays.js";
-import { findAddressCoords } from "./utils/addressPoints.js";
+import { getCache, setCache } from "./utils/cache.js";
 
 const app = express();
-const PORT = process.env.PORT || 8787;
+const PORT = process.env.PORT || 10000;
 
+// Enable stealth plugin to reduce blocking
 puppeteer.use(StealthPlugin());
 
-// Utility to extract text safely
-async function getText(page, selector) {
+/**
+ * Create and configure a browser instance.
+ * Works both locally (with full Chrome) and on Render (with @sparticuz/chromium).
+ */
+async function launchBrowser() {
   try {
-    await page.waitForSelector(selector, { timeout: 10000 });
-    const text = await page.$eval(selector, el => el.innerText.trim());
-    return text || null;
-  } catch {
-    return null;
+    const isRender = !!process.env.RENDER; // Render sets this automatically
+    const launchOptions = isRender
+      ? {
+          headless: true,
+          args: chromium.args,
+          executablePath: await chromium.executablePath(),
+          defaultViewport: chromium.defaultViewport,
+        }
+      : {
+          headless: true,
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--no-zygote",
+          ],
+        };
+
+    return await puppeteer.launch(launchOptions);
+  } catch (err) {
+    console.error("❌ Failed to launch browser:", err.message);
+    throw err;
   }
 }
 
+/**
+ * Root route for quick health check
+ */
+app.get("/", (req, res) => {
+  res.send("✅ Amenia Scraper API is running.");
+});
+
+/**
+ * Main scrape endpoint
+ */
 app.get("/scrape", async (req, res) => {
   const address = req.query.address;
-  if (!address) return res.status(400).json({ error: "Missing address parameter" });
+  if (!address) return res.status(400).json({ error: "Missing ?address parameter" });
 
-  console.log(`\n🌐 Scraping + zoning/overlay lookup for: ${address}`);
+  console.log(`🌐 Scraping + zoning/overlay lookup for: ${address}`);
 
-  // 🔹 Detect environment (Render vs Local)
-  const isRender = !!process.env.RENDER;
-  const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome';
+  const cached = getCache(address);
+  if (cached) {
+    console.log("⚡ Serving from cache");
+    return res.json(cached);
+  }
 
-const browser = await puppeteer.launch({
-  headless: true,
-  executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium-browser",
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage",
-    "--disable-gpu",
-    "--no-zygote",
-    "--single-process"
-  ]
-});
-  const page = await browser.newPage();
-  page.setDefaultNavigationTimeout(60000);
-
+  let browser;
   try {
-    console.log("🔗 Opening Dutchess County GIS Address Info Finder...");
-    await page.goto("https://gis.dutchessny.gov/addressinfofinder/", { waitUntil: "domcontentloaded" });
+    browser = await launchBrowser();
+    const page = await browser.newPage();
 
-    // Type the address
-    await page.waitForSelector("#omni-address", { timeout: 15000 });
-    await page.type("#omni-address", address, { delay: 50 });
-    await page.keyboard.press("Enter");
+    // Go to GIS site
+    await page.goto("https://gis.dutchessny.gov/address-info-finder/", {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
 
-    // Wait for the report button
-    await page.waitForSelector("button.report-link.gold", { timeout: 20000 });
-    await page.click("button.report-link.gold");
-
-    // Wait for the report content
-    await page.waitForSelector("#report", { timeout: 30000 });
-    await page.waitForFunction(() => !document.querySelector(".spinner"), { timeout: 20000 });
+    // Fill in address and trigger lookup
+    await page.type("#inputAddress", address);
+    await page.waitForTimeout(1000);
+    await page.click("#searchBtn");
+    await page.waitForTimeout(3000);
 
     console.log("📄 Extracting report details...");
 
-    const parcelGrid = await getText(page, ".parcelgrid.cell b");
-    const schoolDistrict = await getText(page, ".school-district.cell b");
-    const roadAuthority = await getText(page, ".road-authority.cell p");
-    const fireStation = await getText(page, ".fire-station.cell");
-    const legislator = await getText(page, ".dcny-legislator.cell");
+    const data = await page.evaluate(() => {
+      const output = {};
+      const info = document.querySelectorAll(".infoPanel p, .infoPanel div");
+      info.forEach((el) => {
+        const text = el.textContent.trim();
+        if (text.includes("Parcel Grid")) output.parcelGrid = text.split(":")[1]?.trim();
+        if (text.includes("School District")) output.schoolDistrict = text.split(":")[1]?.trim();
+        if (text.includes("Highway Department")) output.roadAuthority = text.split(":")[1]?.trim();
+        if (text.includes("Fire Department")) output.fireStation = text.split(":")[1]?.trim();
+        if (text.includes("Legislative District")) output.legislator = text.split(":")[1]?.trim();
+      });
+      return output;
+    });
 
-    // Get coordinates from local file lookup
     const coords = findAddressCoords(address);
+    console.log(`📍 Found coords ${coords?.x}, ${coords?.y} (${coords?.municipality})`);
 
-    let zoning = null;
-    let overlays = [];
-
-    if (coords && coords.x && coords.y) {
-      console.log(`📍 Found coords ${coords.x}, ${coords.y} (${coords.municipality})`);
-      zoning = getZoning(coords.x, coords.y);
-      overlays = getOverlays(coords.x, coords.y);
-    } else {
-      console.warn("⚠️ Coordinates not found in local dataset.");
-    }
+    const zoning = coords ? getZoning(coords.x, coords.y) : null;
+    const overlays = coords ? getOverlays(coords.x, coords.y) : [];
 
     const result = {
       address,
       source: "Dutchess County GIS Address Info Finder + Local Zoning + Overlay Districts",
       scrapedAt: new Date().toISOString(),
       data: {
-        parcelGrid,
-        schoolDistrict,
-        roadAuthority,
-        fireStation,
-        legislator,
+        ...data,
         coordinates: coords || null,
-        zoning,
-        overlays
-      }
+        zoning: zoning || null,
+        overlays: overlays || [],
+      },
     };
 
     console.log("✅ Scraped Data:\n", JSON.stringify(result, null, 2));
+
+    setCache(address, result);
     res.json(result);
   } catch (err) {
-    console.error("❌ Scraper failed:", err);
+    console.error("❌ Scrape failed:", err.message);
     res.status(500).json({ error: err.message });
   } finally {
-    await browser.close();
+    if (browser) await browser.close().catch(() => {});
   }
 });
 
+/**
+ * Start the Express server
+ */
 app.listen(PORT, () => {
   console.log(`✅ Amenia Scraper fully local or cloud at http://localhost:${PORT}`);
   console.log(`🧭 Try: curl "http://localhost:${PORT}/scrape?address=10%20Main%20St%20Amenia%20NY"`);
