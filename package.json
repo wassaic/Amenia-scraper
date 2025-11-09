@@ -1,0 +1,16 @@
+{
+  "name": "amenia-scraper",
+  "version": "1.0.0",
+  "description": "Dutchess County GIS Amenia Address Info Finder with zoning and overlay lookups",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.1",
+    "@turf/turf": "^6.5.0"
+  }
+}
