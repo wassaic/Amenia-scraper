@@ -31,19 +31,21 @@ app.get("/scrape", async (req, res) => {
   const isRender = !!process.env.RENDER;
   const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome';
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath: chromePath,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--no-zygote",
-      "--single-process"
-    ]
-  });
-
+ const browser = await puppeteer.launch({
+  headless: true,
+  executablePath:
+    process.env.PUPPETEER_EXECUTABLE_PATH ||
+    chromePath ||
+    "/usr/bin/chromium",
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--no-zygote",
+    "--single-process"
+  ]
+});
   const page = await browser.newPage();
   page.setDefaultNavigationTimeout(60000);
 
