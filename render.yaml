@@ -12,7 +12,3 @@ services:
         value: 20.10.0
       - key: PUPPETEER_CACHE_DIR
         value: /tmp/puppeteer
-    disk:
-      name: data
-      mountPath: /tmp
-      sizeGB: 2
