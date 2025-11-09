@@ -33,7 +33,7 @@ app.get("/scrape", async (req, res) => {
 
 const browser = await puppeteer.launch({
   headless: true,
-  executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
+  executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium-browser",
   args: [
     "--no-sandbox",
     "--disable-setuid-sandbox",

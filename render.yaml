@@ -4,10 +4,12 @@ services:
     env: node
     buildCommand: |
       apt-get update
-      apt-get install -y chromium
+      apt-get install -y chromium-browser
       npm install
     startCommand: node --max-old-space-size=2048 index.js
     plan: free
     envVars:
       - key: PORT
         value: 10000
+      - key: CHROMIUM_PATH
+        value: /usr/bin/chromium-browser
