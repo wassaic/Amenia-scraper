@@ -2,10 +2,25 @@ services:
   - type: web
     name: amenia-scraper
     env: node
-    plan: free
-    buildCommand: npm run render-build
-    startCommand: node index.js
+    plan: starter  # or free, but starter is recommended for memory-heavy tasks
+    region: oregon  # choose your nearest region
+    buildCommand: npm install
+    startCommand: node --max-old-space-size=2048 index.js
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PUPPETEER_SKIP_DOWNLOAD
+        value: "true"  # prevents Chromium from downloading during build
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: "/usr/bin/google-chrome-stable"  # Render’s Chrome path
+      - key: PORT
+        value: 10000  # Render sets its own port; Express should use process.env.PORT
+
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 2  # optional, if you plan to store large GeoJSON files or cache
+
+    healthCheckPath: /
+    autoDeploy: true
