@@ -1,39 +1,32 @@
 // utils/addressPoints.js
 import fs from "fs";
 import path from "path";
+import JSONStream from "JSONStream";
 
-// ✅ Build path relative to this file, not to where Node runs
-const addrPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), "addressPoints.geojson");
+const addrPath = path.resolve("./utils/addressPoints.geojson");
 
-let addrData = null;
-try {
-  const raw = fs.readFileSync(addrPath, "utf8");
-  addrData = JSON.parse(raw);
-  console.log(`✅ Loaded addressPoints.geojson with ${addrData.features.length} address points.`);
-} catch (err) {
-  console.error("❌ Failed to load addressPoints.geojson:", err.message);
-}
+export async function findAddressCoords(searchAddress) {
+  return new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(addrPath, { encoding: "utf8" });
+    const parser = JSONStream.parse("features.*");
 
-/**
- * Finds coordinates for a given address (simple case-insensitive match)
- */
-export function findAddressCoords(address) {
-  if (!addrData) return null;
+    let found = null;
+    stream.pipe(parser);
 
-  const normalized = address.toLowerCase().replace(/[\.,]/g, "");
-  const match = addrData.features.find(f =>
-    f.properties &&
-    f.properties.FULLADDRESS &&
-    normalized.includes(f.properties.FULLADDRESS.toLowerCase().replace(/[\.,]/g, ""))
-  );
+    parser.on("data", feature => {
+      const fullAddr = feature.properties.FULLADDRESS?.toUpperCase() || "";
+      if (fullAddr.includes(searchAddress.toUpperCase())) {
+        found = {
+          x: feature.geometry.coordinates[0],
+          y: feature.geometry.coordinates[1],
+          fullAddress: feature.properties.FULLADDRESS,
+          municipality: feature.properties.MUNICIPALITY
+        };
+        stream.destroy(); // stop reading once found
+      }
+    });
 
-  if (!match) return null;
-
-  const [x, y] = match.geometry.coordinates;
-  return {
-    x,
-    y,
-    fullAddress: match.properties.FULLADDRESS,
-    municipality: match.properties.MUNICIPALITY
-  };
+    parser.on("end", () => resolve(found));
+    parser.on("error", reject);
+  });
 }
