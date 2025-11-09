@@ -31,12 +31,9 @@ app.get("/scrape", async (req, res) => {
   const isRender = !!process.env.RENDER;
   const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome';
 
- const browser = await puppeteer.launch({
+const browser = await puppeteer.launch({
   headless: true,
-  executablePath:
-    process.env.PUPPETEER_EXECUTABLE_PATH ||
-    chromePath ||
-    "/usr/bin/chromium",
+  executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
   args: [
     "--no-sandbox",
     "--disable-setuid-sandbox",
