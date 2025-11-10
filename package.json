@@ -7,7 +7,7 @@
     "start": "node --max-old-space-size=2048 index.js"
   },
   "dependencies": {
-    "@sparticuz/chromium": "^120.0.0",
+    "@sparticuz/chromium": "119.0.0",
     "@turf/turf": "^6.5.0",
     "express": "^4.19.2",
     "puppeteer-core": "^21.3.8",
