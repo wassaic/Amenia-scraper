@@ -1,39 +1,40 @@
 // utils/overlays.js
+import * as turf from "@turf/turf";
 import fs from "fs";
 import path from "path";
-import * as turf from "@turf/turf";
 
-const overlaysPath = path.resolve("./utils/overlays.geojson");
+const overlayPath = path.resolve("./utils/overlays.geojson");
 let overlayData = null;
 
 try {
-  const raw = fs.readFileSync(overlaysPath, "utf8");
+  const raw = fs.readFileSync(overlayPath, "utf8");
   overlayData = JSON.parse(raw);
   console.log(`✅ Loaded overlays.geojson with ${overlayData.features.length} features.`);
 } catch (err) {
   console.error("❌ Failed to load overlays.geojson:", err.message);
 }
 
-export function getOverlays(x, y) {
-  if (!overlayData) return [];
+/**
+ * Find overlay districts intersecting the given coordinate
+ * @param {number} lon - Longitude
+ * @param {number} lat - Latitude
+ * @param {object} data - Optional GeoJSON override
+ */
+export function getOverlaysForCoords(lon, lat, data = overlayData) {
+  if (!data) return [];
 
-  const pt = turf.point([x, y]);
+  const point = turf.point([lon, lat]);
+  const results = data.features.filter(f => turf.booleanPointInPolygon(point, f));
 
-  // Find all polygons containing the point
-  const matches = overlayData.features.filter((f) => {
-    try {
-      return turf.booleanPointInPolygon(pt, f);
-    } catch {
-      return false;
-    }
-  });
+  if (!results.length) {
+    return [];
+  }
 
-  // Map to overlay district properties
-  return matches.map((f) => ({
-    DistrictName: f.properties?.DistrictName || null,
-    FullDistrictName: f.properties?.FullDistrictName || null,
-    SubDistrictName: f.properties?.SubDistrictName || null,
-    Municipality: f.properties?.Municipality || null,
-    Swis: f.properties?.Swis || null,
+  return results.map(f => ({
+    district: f.properties.DistrictName || null,
+    fullDistrict: f.properties.FullDistrictName || null,
+    subDistrict: f.properties.SubDistrictName || null,
+    municipality: f.properties.Municipality || null,
+    swis: f.properties.Swis || null
   }));
 }
