@@ -57,21 +57,37 @@ app.get("/scrape", async (req, res) => {
       waitUntil: "domcontentloaded",
     });
 
-    // Type address
-    await page.waitForSelector("#omni-address", { timeout: 15000 });
-    await page.type("#omni-address", address, { delay: 50 });
-    await page.keyboard.press("Enter");
+    // Type address and wait for autocomplete suggestions
+await page.waitForSelector("#omni-address", { timeout: 15000 });
+await page.click("#omni-address", { clickCount: 3 });
+await page.keyboard.press("Backspace");
+await page.type("#omni-address", address, { delay: 100 });
 
-    // Wait for the report button
-    await page.waitForSelector("button.report-link.gold", { timeout: 20000 });
-    await page.click("button.report-link.gold");
+// Wait for dropdown or validation (the site does async lookup)
+await page.waitForFunction(
+  () => {
+    const suggestions = document.querySelectorAll(".esri-search__suggestions li, .suggestions li");
+    return suggestions.length > 0 || document.querySelector(".report-link.gold");
+  },
+  { timeout: 15000 }
+);
 
-    // Wait for report content
-    await page.waitForSelector("#report", { timeout: 30000 });
-    await page.waitForFunction(() => !document.querySelector(".spinner"), {
-      timeout: 20000,
-    });
+// Give a short buffer time for internal geocoder
+await page.waitForTimeout(800);
 
+// Press Enter to confirm the selected address
+await page.keyboard.press("Enter");
+
+// Wait for the report button to appear — but only click once ready
+await page.waitForSelector("button.report-link.gold", { timeout: 30000 });
+await page.waitForTimeout(500);
+await page.click("button.report-link.gold");
+
+// Wait for report section to render
+await page.waitForSelector("#report", { timeout: 30000 });
+await page.waitForFunction(() => !document.querySelector(".spinner"), {
+  timeout: 20000,
+});
     console.log("📄 Extracting report details...");
 
     // Scrape report data
