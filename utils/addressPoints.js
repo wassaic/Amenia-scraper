@@ -3,10 +3,10 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// ✅ Correctly resolve path to addressPoints.geojson regardless of runtime directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const addrPath = path.join(__dirname, "addressPoints.geojson");
+
+const addrPath = path.resolve(__dirname, "addressPoints.geojson");
 
 let addrData = null;
 try {
@@ -18,39 +18,39 @@ try {
 }
 
 /**
- * Finds coordinates for a given address (case-insensitive + punctuation-tolerant)
+ * Finds coordinates for a given address (case-insensitive)
  */
 export function findAddressCoords(address) {
   if (!addrData) return null;
 
-  // Normalize for more flexible matching
-  const normalized = address.toLowerCase()
-    .replace(/[\.,]/g, "")
-    .replace(/\b(street|st)\b/g, "st")
-    .replace(/\b(road|rd)\b/g, "rd")
-    .replace(/\b(avenue|ave)\b/g, "ave")
-    .replace(/\s+/g, " ")
-    .trim();
+  const normalized = address.toLowerCase().replace(/[\.,]/g, "");
+  const match = addrData.features.find(
+    (f) =>
+      f.properties &&
+      f.properties.FULLADDRESS &&
+      normalized.includes(
+        f.properties.FULLADDRESS.toLowerCase().replace(/[\.,]/g, "")
+      )
+  );
 
-  const match = addrData.features.find(f => {
-    const full = f.properties?.FULLADDRESS?.toLowerCase()
-      .replace(/[\.,]/g, "")
-      .replace(/\b(street|st)\b/g, "st")
-      .replace(/\b(road|rd)\b/g, "rd")
-      .replace(/\b(avenue|ave)\b/g, "ave")
-      .replace(/\s+/g, " ")
-      .trim();
+  if (!match || !match.geometry || !Array.isArray(match.geometry.coordinates)) {
+    console.warn(`⚠️ No coordinate match for ${address}`);
+    return null;
+  }
 
-    return full && (normalized.includes(full) || full.includes(normalized));
-  });
+  const [xRaw, yRaw] = match.geometry.coordinates;
+  const x = parseFloat(xRaw);
+  const y = parseFloat(yRaw);
 
-  if (!match) return null;
+  if (isNaN(x) || isNaN(y)) {
+    console.warn(`⚠️ Invalid coordinate data for ${address}:`, match.geometry.coordinates);
+    return null;
+  }
 
-  const [x, y] = match.geometry.coordinates;
   return {
     x,
     y,
     fullAddress: match.properties.FULLADDRESS,
-    municipality: match.properties.MUNICIPALITY
+    municipality: match.properties.MUNICIPALITY,
   };
 }
