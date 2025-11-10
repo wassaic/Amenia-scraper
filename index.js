@@ -1,6 +1,7 @@
 import express from "express";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import { executablePath } from "puppeteer";
 import { findAddressCoords } from "./utils/addressPoints.js";
 import { getZoning } from "./utils/zoning.js";
 import { getOverlays } from "./utils/overlays.js";
@@ -8,13 +9,13 @@ import { getOverlays } from "./utils/overlays.js";
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// ✅ Add puppeteer stealth
+// 🕵️ Add stealth plugin
 puppeteer.use(StealthPlugin());
 
-// ✅ Safe delay function to replace page.waitForTimeout
-const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+// 🕑 Small delay utility
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// ✅ Utility for safe text extraction
+// ✅ Utility to safely get text from a page
 async function getText(page, selector) {
   try {
     await page.waitForSelector(selector, { timeout: 10000 });
@@ -25,6 +26,7 @@ async function getText(page, selector) {
   }
 }
 
+// ✅ Scraper route
 app.get("/scrape", async (req, res) => {
   const address = req.query.address;
   if (!address) return res.status(400).json({ error: "Missing address parameter" });
@@ -33,8 +35,10 @@ app.get("/scrape", async (req, res) => {
 
   let browser;
   try {
+    // 🚀 Launch Puppeteer safely for Render
     browser = await puppeteer.launch({
       headless: true,
+      executablePath: executablePath(), // ✅ use bundled Chromium path
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -46,24 +50,24 @@ app.get("/scrape", async (req, res) => {
     const page = await browser.newPage();
     page.setDefaultNavigationTimeout(60000);
 
-    // ✅ Load the Dutchess GIS Address Info Finder
+    // 🔎 Go to the Dutchess GIS Address Info Finder
     await page.goto("https://gis.dutchessny.gov/addressinfofinder/", {
       waitUntil: "domcontentloaded",
     });
 
-    // ✅ Wait for input, type address slowly, and ensure full completion before Enter
+    // ⌨️ Type address fully before submit
     await page.waitForSelector("#omni-address", { timeout: 15000 });
     await page.focus("#omni-address");
     await page.keyboard.type(address, { delay: 75 });
-    await delay(800); // Ensure full typing before submission
+    await delay(800);
     await page.keyboard.press("Enter");
 
-    // ✅ Wait for results and report button
+    // 🕒 Wait for report link
     await page.waitForSelector("button.report-link.gold", { timeout: 20000 });
     await delay(800);
     await page.click("button.report-link.gold");
 
-    // ✅ Wait for the report content
+    // 📑 Wait for report data
     await page.waitForSelector("#report", { timeout: 30000 });
     await page.waitForFunction(() => !document.querySelector(".spinner"), {
       timeout: 20000,
@@ -71,20 +75,20 @@ app.get("/scrape", async (req, res) => {
 
     console.log("📄 Extracting report details...");
 
-    // ✅ Extract text content from the page
+    // 🧭 Extract visible data
     const parcelGrid = await getText(page, ".parcelgrid.cell b");
     const schoolDistrict = await getText(page, ".school-district.cell b");
     const roadAuthority = await getText(page, ".road-authority.cell p");
     const fireStation = await getText(page, ".fire-station.cell");
     const legislator = await getText(page, ".dcny-legislator.cell");
 
-    // ✅ Find coordinates from local addressPoints.geojson
+    // 🗺️ Get coordinates from local file
     const coords = findAddressCoords(address);
     console.log("📍 Debug coords output:", coords);
 
     if (!coords) console.warn("⚠️ No coordinates found locally");
 
-    // ✅ Zoning + overlay lookup
+    // 🧩 Lookup zoning + overlays
     let zoning = { code: null, description: null, municipality: null };
     let overlays = [];
 
@@ -94,7 +98,7 @@ app.get("/scrape", async (req, res) => {
       if (!Array.isArray(overlays)) overlays = [overlays];
     }
 
-    // ✅ Map overlay fields consistently
+    // 🧱 Clean overlay fields
     const formattedOverlays = overlays.map((o) => ({
       district: o?.DistrictName || o?.district || null,
       fullDistrict: o?.FullDistrictName || o?.fullDistrict || null,
@@ -103,6 +107,7 @@ app.get("/scrape", async (req, res) => {
       swis: o?.Swis || o?.swis || null,
     }));
 
+    // 🧾 Build response
     const scrapedData = {
       address,
       source: "Dutchess County GIS Address Info Finder + Local Zoning + Overlay Districts",
@@ -129,6 +134,7 @@ app.get("/scrape", async (req, res) => {
   }
 });
 
+// ✅ Start the API
 app.listen(PORT, () => {
   console.log(`✅ Loaded addressPoints.geojson with 107479 address points.`);
   console.log(`✅ Loaded zoning.geojson with 360 features.`);
