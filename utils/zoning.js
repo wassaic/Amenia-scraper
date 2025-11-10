@@ -1,20 +1,45 @@
 import fs from "fs";
 import * as turf from "@turf/turf";
 
-// Load the zoning GeoJSON file
+// Load zoning GeoJSON safely
 const zoningData = JSON.parse(fs.readFileSync("./utils/zoning.geojson", "utf8"));
 console.log(`✅ Loaded zoning.geojson with ${zoningData.features.length} features.`);
 
-// Main function to find the zoning district for given coordinates
+/**
+ * Finds zoning data for given coordinates (x, y)
+ */
 export function getZoning(x, y) {
-  const point = turf.point([x, y]);
-  const match = zoningData.features.find((f) => turf.booleanPointInPolygon(point, f));
+  const xNum = Number(x);
+  const yNum = Number(y);
 
-  if (!match) return null;
+  // Validate coordinate numbers
+  if (Number.isNaN(xNum) || Number.isNaN(yNum)) {
+    console.error("❌ Invalid coordinate numbers passed to getZoning:", { x, y });
+    return null;
+  }
+
+  // Create a Turf point
+  const point = turf.point([xNum, yNum]);
+
+  // Find the first zoning polygon containing the point
+  const match = zoningData.features.find((f) => {
+    try {
+      return turf.booleanPointInPolygon(point, f);
+    } catch (err) {
+      console.error("⚠️ Error testing polygon:", err.message);
+      return false;
+    }
+  });
+
+  // Return clean structured data
+  if (!match) {
+    console.warn("⚠️ No zoning match found for coordinates:", { xNum, yNum });
+    return null;
+  }
 
   return {
-    code: match.properties.ZoningCode || null,
-    description: match.properties.ZoningDesc || null,
-    municipality: match.properties.Municipality || null,
+    code: match.properties?.CODE || null,
+    description: match.properties?.DESCRIPTION || null,
+    municipality: match.properties?.MUNICIPALITY || null,
   };
 }
