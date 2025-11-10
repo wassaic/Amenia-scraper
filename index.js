@@ -1,155 +1,156 @@
+// index.js – Final Render-Ready Version
 import express from "express";
-import puppeteer from "puppeteer-core";
-import chromium from "@sparticuz/chromium";
-import * as turf from "@turf/turf";
 import fs from "fs";
 import path from "path";
-
-// --- Load local data files ---
-import path from "path";
 import { fileURLToPath } from "url";
+import puppeteer from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import chromium from "@sparticuz/chromium";
+import * as turf from "@turf/turf";
 
+// Puppeteer setup
+puppeteer.use(StealthPlugin());
+
+// Path setup for local data
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load GeoJSON files manually
-const zoningData = JSON.parse(fs.readFileSync(path.join(__dirname, "utils/zoning.geojson"), "utf-8"));
-const overlaysData = JSON.parse(fs.readFileSync(path.join(__dirname, "utils/overlays.geojson"), "utf-8"));
-const addressPoints = JSON.parse(fs.readFileSync(path.join(__dirname, "utils/addressPoints.geojson"), "utf-8"));
+// Load local GeoJSON data safely
+function loadGeoJSON(filename) {
+  const fullPath = path.join(__dirname, "utils", filename);
+  try {
+    const data = JSON.parse(fs.readFileSync(fullPath, "utf8"));
+    console.log(`✅ Loaded ${filename} with ${data.features.length} features.`);
+    return data;
+  } catch (err) {
+    console.error(`❌ Failed to load ${filename}:`, err.message);
+    return { features: [] };
+  }
+}
 
-// --- Server setup ---
-const app = express();
-const PORT = process.env.PORT || 10000;
+const zoningData = loadGeoJSON("zoning.geojson");
+const overlayData = loadGeoJSON("overlays.geojson");
+const addressData = loadGeoJSON("addressPoints.geojson");
 
-// --- Puppeteer Chromium path ---
-const chromePath = process.env.CHROMIUM_PATH || (await chromium.executablePath());
-
-// --- Turf.js: Zoning lookup ---
+// Utility: find zoning by coordinate
 function getZoningForCoords(lon, lat) {
   const point = turf.point([lon, lat]);
   for (const feature of zoningData.features) {
     if (turf.booleanPointInPolygon(point, feature)) {
       const props = feature.properties;
       return {
-        code: props.Zone_Label || props.ZONE || props.Zone_Code || null,
-        description: props.Zone_Description || props.Description || props.Desc || null,
-        municipality: props.Municipality || props.TOWN || props.Town_Name || null,
-        parcelGrid: props.Parcel_ID || props.ParcelGrid || props.PARCEL || null
+        code: props.ZONE || props.zone || props.Code || null,
+        description: props.DESC || props.desc || props.Description || null,
+        municipality: props.TOWN || props.Municipality || null,
+        parcelGrid: props.ParcelID || props.PARCELID || null,
       };
     }
   }
-  return null;
+  return { code: null, description: null, municipality: null, parcelGrid: null };
 }
 
-// --- Turf.js: Overlay lookup ---
+// Utility: find overlay(s) by coordinate
 function getOverlaysForCoords(lon, lat) {
   const point = turf.point([lon, lat]);
-  return overlaysData.features
-    .filter(f => turf.booleanPointInPolygon(point, f))
-    .map(f => ({
-      district: f.properties.DistrictName || f.properties.DISTRICT || null,
-      fullDistrict: f.properties.FullDistrictName || f.properties.FULL_DISTRICT || null,
-      subDistrict: f.properties.SubDistrictName || f.properties.SubDistrict || null,
-      municipality: f.properties.Municipality || f.properties.TOWN || null,
-      swis: f.properties.Swis || f.properties.SWIS || null
-    }));
-}
-
-// --- Helper: Find address coordinates locally ---
-function getAddressCoords(address) {
-  const normalized = address.toUpperCase().replace(/\s+/g, " ").trim();
-  const record = addressPoints.features.find(f => {
-    const addr = f.properties.FULLADDRESS?.toUpperCase() || "";
-    return addr.includes(normalized);
-  });
-  if (record) {
-    return {
-      x: record.geometry.coordinates[0],
-      y: record.geometry.coordinates[1],
-      fullAddress: record.properties.FULLADDRESS,
-      municipality: record.properties.MUNICIPALITY
-    };
-  }
-  return null;
-}
-
-// --- Puppeteer Scraper (Dutchess GIS site) ---
-async function scrapeAddressInfo(address) {
-  console.log(`🌐 Scraping + zoning/overlay lookup for: ${address}`);
-
-  const browser = await puppeteer.launch({
-    args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
-    executablePath: await chromium.executablePath(),
-    headless: chromium.headless,
-  });
-
-  const page = await browser.newPage();
-  await page.goto("https://gis.dutchessny.gov/addressinfofinder/", {
-    waitUntil: "networkidle2",
-    timeout: 60000
-  });
-
-  // Wait for and type address
-  await page.waitForSelector("#omni-address", { visible: true });
-  await page.type("#omni-address", address, { delay: 100 });
-
-  // Wait for suggestion + click
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(4000);
-
-  // Get report info
-  const content = await page.content();
-  const parcelMatch = content.match(/Parcel\s+ID[:\s]+([\d-]+)/i);
-  const parcelGrid = parcelMatch ? parcelMatch[1].trim() : null;
-
-  await browser.close();
-
-  // Get coordinates locally
-  const coords = getAddressCoords(address);
-  if (!coords) throw new Error("No coordinates found for address");
-
-  // Turf lookups
-  const zoning = getZoningForCoords(coords.x, coords.y);
-  const overlays = getOverlaysForCoords(coords.x, coords.y);
-
-  return {
-    address,
-    source: "Dutchess County GIS Address Info Finder + Local Zoning + Overlay Districts",
-    scrapedAt: new Date().toISOString(),
-    data: {
-      parcelGrid,
-      coordinates: coords,
-      zoning,
-      overlays
+  const matches = [];
+  for (const feature of overlayData.features) {
+    if (turf.booleanPointInPolygon(point, feature)) {
+      const props = feature.properties;
+      matches.push({
+        district: props.DistrictName || props.DISTRICT || null,
+        fullDistrict: props.FullDistrictName || props.FULLDISTRICT || null,
+        subDistrict: props.SubDistrictName || props.SUBDISTRICT || null,
+        municipality: props.Municipality || props.TOWN || null,
+        swis: props.Swis || props.SWIS || null,
+      });
     }
-  };
+  }
+  return matches;
 }
 
-// --- Express Route ---
-app.get("/scrape", async (req, res) => {
-  const address = req.query.address;
-  if (!address) return res.status(400).json({ error: "Missing ?address= parameter" });
+// Express app
+const app = express();
+const PORT = process.env.PORT || 10000;
 
-  try {
-    const result = await scrapeAddressInfo(address);
-    res.json(result);
-  } catch (err) {
-    console.error("❌ Scrape failed:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// --- Health check endpoint ---
+// Health endpoint
 app.get("/", (req, res) => {
   res.json({
     status: "✅ OK",
     message: "Amenia Scraper API is live and responding",
-    endpoints: ["/scrape?address=<address>"]
+    endpoints: ["/scrape?address=<address>"],
   });
 });
 
-// --- Start Server ---
+// Scrape endpoint
+app.get("/scrape", async (req, res) => {
+  const address = req.query.address;
+  if (!address) {
+    return res.status(400).json({ error: "Missing ?address parameter" });
+  }
+
+  console.log(`🌐 Scraping + zoning/overlay lookup for: ${address}`);
+
+  try {
+    // Launch Puppeteer on Render with Chromium binary
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+      defaultViewport: chromium.defaultViewport,
+    });
+    const page = await browser.newPage();
+    await page.goto("https://gis.dutchessny.gov/addressinfofinder/", {
+      waitUntil: "networkidle2",
+    });
+
+    // Input address in the correct search box
+    await page.waitForSelector("#omni-address", { timeout: 15000 });
+    await page.type("#omni-address", address);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(4000);
+
+    // Extract coordinates from the JS context
+    const coords = await page.evaluate(() => {
+      const mapEl = document.querySelector("#map");
+      if (!mapEl) return null;
+      const text = mapEl.innerText || "";
+      const match = text.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+      if (match) {
+        return { x: parseFloat(match[1]), y: parseFloat(match[2]) };
+      }
+      return null;
+    });
+
+    await browser.close();
+
+    if (!coords) {
+      return res.status(404).json({ error: "Could not extract coordinates." });
+    }
+
+    const zoning = getZoningForCoords(coords.x, coords.y);
+    const overlays = getOverlaysForCoords(coords.x, coords.y);
+
+    const result = {
+      address,
+      source: "Dutchess County GIS Address Info Finder + Local Zoning + Overlay Districts",
+      scrapedAt: new Date().toISOString(),
+      data: {
+        coordinates: coords,
+        zoning,
+        overlays,
+      },
+    };
+
+    console.log("✅ Scraped Data:", JSON.stringify(result, null, 2));
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Scraper error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Start server
 app.listen(PORT, () => {
-  console.log(`✅ Amenia Scraper running on port ${PORT}`);
+  console.log(`✅ Amenia Scraper fully local or cloud at http://localhost:${PORT}`);
+  console.log(`🧭 Try: curl "http://localhost:${PORT}/scrape?address=10%20Main%20St%20Amenia%20NY"`);
 });
