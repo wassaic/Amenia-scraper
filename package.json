@@ -5,7 +5,7 @@
   "description": "Amenia GIS Address Info Finder scraper with local zoning and overlay lookups",
   "main": "index.js",
   "scripts": {
-    "start": "node --max-old-space-size=2048 index.js"
+  "start": "node index.js"
   },
   "dependencies": {
     "@sparticuz/chromium": "^122.0.0",

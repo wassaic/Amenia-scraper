@@ -4,12 +4,12 @@ import express from "express";
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Health check route
+// Root route
 app.get("/", (req, res) => {
-  res.send("✅ Amenia Scraper API is live and ready!");
+  res.send("✅ Amenia Scraper API is live!");
 });
 
-// Working /scrape route
+// Scrape route
 app.get("/scrape", (req, res) => {
   const address = req.query.address;
   if (!address) {
@@ -18,11 +18,11 @@ app.get("/scrape", (req, res) => {
 
   res.json({
     address,
-    message: "✅ /scrape endpoint is working properly on Render!"
+    message: "✅ The /scrape endpoint works and is responding properly!"
   });
 });
 
-// Start the server
+// Start server
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Server is running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
