@@ -82,7 +82,16 @@ app.get("/scrape", async (req, res) => {
     const legislator = await getText(page, ".dcny-legislator.cell");
 
     // Get coordinates from local dataset
-    const coords = findAddressCoords(address);
+    const coords = findAddressCoords(address); console.log("📍 Debug coords output:", coords);
+
+if (!coords || typeof coords.x !== "number" || typeof coords.y !== "number") {
+  console.error("❌ Invalid coordinates received:", coords);
+  return res.status(500).json({
+    error: "Could not determine valid coordinates from addressPoints.geojson",
+    debug: coords,
+  });
+}
+
     if (coords)
       console.log(`📍 Found coords ${coords.x}, ${coords.y} (${coords.municipality})`);
     else console.warn("⚠️ No coordinates found locally");
