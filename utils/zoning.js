@@ -1,51 +1,33 @@
+// utils/zoning.js
 import fs from "fs";
-import path from "path";
 import * as turf from "@turf/turf";
 
-// Resolve file path properly for Render
-const zoningPath = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
-  "zoning.geojson"
-);
-
-let zoningData = null;
-try {
-  const raw = fs.readFileSync(zoningPath, "utf8");
-  zoningData = JSON.parse(raw);
-  console.log(`✅ Loaded zoning.geojson with ${zoningData.features.length} features.`);
-} catch (err) {
-  console.error("❌ Failed to load zoning.geojson:", err.message);
-}
+const zoningData = JSON.parse(fs.readFileSync("./utils/zoning.geojson", "utf8"));
+console.log(`✅ Loaded zoning.geojson with ${zoningData.features.length} features.`);
 
 /**
- * Get zoning info for given WGS84 coordinates
+ * Finds the zoning district for a given coordinate.
  */
 export function getZoning(x, y) {
-  const xNum = Number(x);
-  const yNum = Number(y);
+  const xNum = parseFloat(x);
+  const yNum = parseFloat(y);
 
-  if (Number.isNaN(xNum) || Number.isNaN(yNum)) {
-    console.error("❌ Invalid zoning coordinates:", { x, y });
+  if (!Number.isFinite(xNum) || !Number.isFinite(yNum)) {
+    console.error("❌ Invalid coordinates passed to getZoning:", { x, y });
     return null;
   }
 
   const point = turf.point([xNum, yNum]);
-
-  // buffer ~15 meters in case parcel straddles a zone border
-  const buffer = turf.buffer(point, 0.015, { units: "kilometers" });
-
-  const match = zoningData.features.find(f =>
-    turf.booleanIntersects(buffer, f)
-  );
+  const match = zoningData.features.find(f => turf.booleanPointInPolygon(point, f));
 
   if (!match) {
     console.warn("⚠️ No zoning match found for coordinates:", { xNum, yNum });
-    return { code: null, description: null, municipality: null };
+    return null;
   }
 
   return {
-    code: match.properties?.CODE || null,
-    description: match.properties?.DESCRIPTION || match.properties?.ZONEDESC || null,
-    municipality: match.properties?.MUNICIPALITY || null
+    code: match.properties?.ZONE_CODE || match.properties?.Zoning || null,
+    description: match.properties?.ZONE_DESC || match.properties?.Description || null,
+    municipality: match.properties?.MUNICIPALITY || null,
   };
 }

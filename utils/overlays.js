@@ -1,46 +1,37 @@
+// utils/overlays.js
 import fs from "fs";
-import path from "path";
 import * as turf from "@turf/turf";
 
-const overlayPath = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
-  "overlays.geojson"
-);
+const overlayData = JSON.parse(fs.readFileSync("./utils/overlays.geojson", "utf8"));
+console.log(`✅ Loaded overlays.geojson with ${overlayData.features.length} features.`);
 
-let overlayData = null;
-try {
-  const raw = fs.readFileSync(overlayPath, "utf8");
-  overlayData = JSON.parse(raw);
-  console.log(`✅ Loaded overlays.geojson with ${overlayData.features.length} features.`);
-} catch (err) {
-  console.error("❌ Failed to load overlays.geojson:", err.message);
-}
-
+/**
+ * Finds overlay districts that intersect a coordinate.
+ */
 export function getOverlays(x, y) {
-  const xNum = Number(x);
-  const yNum = Number(y);
+  const xNum = parseFloat(x);
+  const yNum = parseFloat(y);
 
-  if (Number.isNaN(xNum) || Number.isNaN(yNum)) {
-    console.error("❌ Invalid overlay coordinates:", { x, y });
+  if (!Number.isFinite(xNum) || !Number.isFinite(yNum)) {
+    console.error("❌ Invalid coordinates passed to getOverlays:", { x, y });
     return [];
   }
 
   const point = turf.point([xNum, yNum]);
-  const buffer = turf.buffer(point, 0.015, { units: "kilometers" }); // ~15m buffer
-
-  const matches = overlayData.features.filter(f =>
-    turf.booleanIntersects(buffer, f)
-  );
-
-  if (!matches.length) {
-    console.warn("⚠️ No overlay match found for coordinates:", { xNum, yNum });
-  }
+  const matches = overlayData.features.filter(f => {
+    try {
+      return turf.booleanPointInPolygon(point, f);
+    } catch (err) {
+      console.error("⚠️ Turf error for overlay feature:", err.message);
+      return false;
+    }
+  });
 
   return matches.map(f => ({
-    district: f.properties?.DistrictName || null,
-    fullDistrict: f.properties?.FullDistrictName || null,
-    subDistrict: f.properties?.SubDistrictName || null,
-    municipality: f.properties?.Municipality || null,
-    swis: f.properties?.Swis || null,
+    DistrictName: f.properties?.DistrictName || null,
+    FullDistrictName: f.properties?.FullDistrictName || null,
+    SubDistrictName: f.properties?.SubDistrictName || null,
+    Municipality: f.properties?.Municipality || null,
+    Swis: f.properties?.Swis || null,
   }));
 }
