@@ -1,10 +1,12 @@
+// index.js
 import express from "express";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import * as turf from "@turf/turf";
 import fs from "fs";
 import path from "path";
-import * as turf from "@turf/turf";
-import { fileURLToPath } from "url";
+import chromium from "@sparticuz/chromium";
+
 import { getZoning } from "./utils/zoning.js";
 import { getOverlays } from "./utils/overlays.js";
 import { findAddressCoords } from "./utils/addressPoints.js";
@@ -13,124 +15,131 @@ puppeteer.use(StealthPlugin());
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/* -------------------- Load GeoJSONs -------------------- */
-function loadGeoJSON(fileName, label) {
-  try {
-    const data = JSON.parse(fs.readFileSync(path.join(__dirname, "utils", fileName), "utf8"));
-    console.log(`✅ Loaded ${label} with ${data.features.length} features.`);
-    return data;
-  } catch (err) {
-    console.error(`❌ Failed to load ${label}: ${err.message}`);
-    return null;
-  }
+//
+// --- Load local data ---
+const zoningPath = path.resolve("./utils/zoning.geojson");
+const overlaysPath = path.resolve("./utils/overlays.geojson");
+const addressPath = path.resolve("./utils/addressPoints.geojson");
+
+let zoningData, overlaysData, addressData;
+
+try {
+  zoningData = JSON.parse(fs.readFileSync(zoningPath, "utf8"));
+  console.log(`✅ Loaded zoning.geojson with ${zoningData.features.length} features.`);
+} catch (err) {
+  console.error("❌ Failed to load zoning.geojson:", err.message);
 }
 
-const zoningData = loadGeoJSON("zoning.geojson", "zoning.geojson");
-const overlayData = loadGeoJSON("overlays.geojson", "overlays.geojson");
-const addressData = loadGeoJSON("addressPoints.geojson", "addressPoints.geojson");
+try {
+  overlaysData = JSON.parse(fs.readFileSync(overlaysPath, "utf8"));
+  console.log(`✅ Loaded overlays.geojson with ${overlaysData.features.length} features.`);
+} catch (err) {
+  console.error("❌ Failed to load overlays.geojson:", err.message);
+}
 
-/* -------------------- Puppeteer Scraper -------------------- */
-async function scrapeAddressInfo(address) {
-  console.log(`🌐 Scraping + zoning/overlay lookup for: ${address}`);
+try {
+  addressData = JSON.parse(fs.readFileSync(addressPath, "utf8"));
+  console.log(`✅ Loaded addressPoints.geojson with ${addressData.features.length} address points.`);
+} catch (err) {
+  console.error("❌ Failed to load addressPoints.geojson:", err.message);
+}
 
-  const browser = await puppeteer.launch({
+//
+// --- Puppeteer configuration ---
+async function getBrowser() {
+  const isRender = !!process.env.RENDER;
+  const executablePath =
+    process.env.CHROME_PATH ||
+    process.env.PUPPETEER_EXECUTABLE_PATH ||
+    (isRender ? await chromium.executablePath() : undefined);
+
+  return await puppeteer.launch({
     headless: true,
-    executablePath:
-      process.env.CHROME_PATH ||
-      process.env.PUPPETEER_EXECUTABLE_PATH ||
-      "/usr/bin/chromium-browser",
+    executablePath,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
       "--no-zygote",
-      "--single-process"
-    ]
+      "--single-process",
+      "--disable-software-rasterizer",
+    ],
+    defaultViewport: chromium.defaultViewport,
   });
+}
 
+//
+// --- Scraper endpoint ---
+app.get("/scrape", async (req, res) => {
+  const address = req.query.address;
+  if (!address) return res.status(400).json({ error: "Missing ?address=" });
+
+  console.log(`🌐 Scraping + zoning/overlay lookup for: ${address}`);
+
+  const browser = await getBrowser();
   const page = await browser.newPage();
 
   try {
-    await page.goto("https://gis.dutchessny.gov/addressinfofinder/", { waitUntil: "networkidle2" });
-
-    // 🧭 Input the address
-    console.log("⌛ Typing address...");
-    await page.waitForSelector("#omni-address", { timeout: 15000 });
-    await page.type("#omni-address", address, { delay: 50 });
-    await page.keyboard.press("Enter");
-
-    console.log("⌛ Waiting for report content...");
-    await page.waitForSelector("#report", { timeout: 25000 });
-
-    // ✅ Extract info from the report
-    console.log("📄 Extracting report details...");
-    const extractedData = await page.evaluate(() => {
-      const text = document.body.innerText;
-
-      const parcelGridMatch = text.match(/Grid Number:\s*([0-9A-Z]+)/i);
-      const schoolDistrictMatch = text.match(/School District:\s*(.*)/i);
-      const roadAuthorityMatch = text.match(/Road Authority:\s*(.*)/i);
-      const fireStationMatch = text.match(/Fire District:\s*(.*)/i);
-      const legislatorMatch = text.match(/Legislator:\s*(.*)/i);
-
-      return {
-        parcelGrid: parcelGridMatch ? parcelGridMatch[1].trim() : null,
-        schoolDistrict: schoolDistrictMatch ? schoolDistrictMatch[1].trim() : null,
-        roadAuthority: roadAuthorityMatch ? roadAuthorityMatch[1].trim() : null,
-        fireStation: fireStationMatch ? fireStationMatch[1].trim() : null,
-        legislator: legislatorMatch ? legislatorMatch[1].trim() : null
-      };
+    await page.goto("https://gis.dutchessny.gov/addressinfofinder/", {
+      waitUntil: "networkidle2",
+      timeout: 60000,
     });
 
-    // 🧭 Find local coordinates
-    const coords = findAddressCoords(address, addressData);
-    if (!coords) {
-      console.warn("⚠️ No local coordinates found.");
-    } else {
-      console.log(`📍 Found coords ${coords.x}, ${coords.y} (${coords.municipality})`);
-    }
+    await page.waitForSelector("#omni-address", { timeout: 15000 });
+    await page.type("#omni-address", address);
+    await page.keyboard.press("Enter");
 
-    // 🏗️ Zoning + overlay lookups
-    const zoning = coords ? getZoning(coords.x, coords.y, zoningData) : null;
-    const overlays = coords ? getOverlays(coords.x, coords.y, overlayData) : [];
+    await page.waitForTimeout(5000);
 
-    const finalData = {
+    // Grab coordinates from the report
+    const coords = await page.evaluate(() => {
+      const scriptTags = Array.from(document.querySelectorAll("script"));
+      for (const tag of scriptTags) {
+        if (tag.innerText.includes("longitude") || tag.innerText.includes("latitude")) {
+          const match = tag.innerText.match(/([-]?\d+\.\d+).*?([-]?\d+\.\d+)/);
+          if (match) {
+            return { x: parseFloat(match[1]), y: parseFloat(match[2]) };
+          }
+        }
+      }
+      return null;
+    });
+
+    if (!coords) throw new Error("Coordinates not found");
+
+    console.log(`📍 Found coords ${coords.x}, ${coords.y}`);
+
+    // --- Local lookups ---
+    const point = turf.point([coords.x, coords.y]);
+    const zoning = getZoning(point, zoningData);
+    const overlays = getOverlays(point, overlaysData);
+    const addressInfo = findAddressCoords(address, addressData);
+
+    const result = {
       address,
       source: "Dutchess County GIS Address Info Finder + Local Zoning + Overlay Districts",
       scrapedAt: new Date().toISOString(),
       data: {
-        ...extractedData,
-        coordinates: coords,
-        zoning: zoning || null,
-        overlays: overlays || []
-      }
+        coordinates: { ...coords, ...addressInfo },
+        zoning,
+        overlays,
+      },
     };
 
-    console.log("✅ Scraped Data:\n", JSON.stringify(finalData, null, 2));
-    return finalData;
+    console.log("✅ Scraped Data:", JSON.stringify(result, null, 2));
+    res.json(result);
   } catch (err) {
     console.error("❌ Scrape failed:", err.message);
-    return { error: err.message };
+    res.status(500).json({ error: err.message });
   } finally {
     await browser.close();
   }
-}
-
-/* -------------------- Express Endpoint -------------------- */
-app.get("/scrape", async (req, res) => {
-  const { address } = req.query;
-  if (!address) {
-    return res.status(400).json({ error: "Missing ?address parameter" });
-  }
-
-  const result = await scrapeAddressInfo(address);
-  res.json(result);
 });
 
+//
+// --- Start server ---
 app.listen(PORT, () => {
-  console.log(`✅ Amenia Scraper fully local or cloud at http://localhost:${PORT}`);
-  console.log(`🧭 Try: curl "http://localhost:${PORT}/scrape?address=10%20Main%20St%20Amenia%20NY"`);
+  console.log(`✅ Amenia Scraper ready at http://localhost:${PORT}`);
 });
