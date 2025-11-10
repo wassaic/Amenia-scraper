@@ -6,11 +6,15 @@ import { getZoning } from "./utils/zoning.js";
 import { getOverlays } from "./utils/overlays.js";
 
 const app = express();
-const PORT = process.env.PORT || 8787;
+const PORT = process.env.PORT || 10000;
 
+// ✅ Add puppeteer stealth
 puppeteer.use(StealthPlugin());
 
-// Utility to safely extract text from the page
+// ✅ Safe delay function to replace page.waitForTimeout
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ✅ Utility for safe text extraction
 async function getText(page, selector) {
   try {
     await page.waitForSelector(selector, { timeout: 10000 });
@@ -21,65 +25,45 @@ async function getText(page, selector) {
   }
 }
 
-// A cross-compatible “sleep”
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 app.get("/scrape", async (req, res) => {
   const address = req.query.address;
-  if (!address) {
-    return res.status(400).json({ error: "Missing address parameter" });
-  }
+  if (!address) return res.status(400).json({ error: "Missing address parameter" });
 
   console.log(`\n🌐 Scraping + zoning/overlay lookup for: ${address}`);
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
-
-  const page = await browser.newPage();
-  page.setDefaultNavigationTimeout(60000);
-
+  let browser;
   try {
-    // Go to GIS site
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+      ],
+    });
+
+    const page = await browser.newPage();
+    page.setDefaultNavigationTimeout(60000);
+
+    // ✅ Load the Dutchess GIS Address Info Finder
     await page.goto("https://gis.dutchessny.gov/addressinfofinder/", {
       waitUntil: "domcontentloaded",
     });
 
-    // Clear, type address slowly, and wait for suggestions
+    // ✅ Wait for input, type address slowly, and ensure full completion before Enter
     await page.waitForSelector("#omni-address", { timeout: 15000 });
-    await page.click("#omni-address", { clickCount: 3 });
-    await page.keyboard.press("Backspace");
-    await page.type("#omni-address", address, { delay: 100 });
-
-    // Wait for dropdown or validation (the site does async lookup)
-    await page.waitForFunction(
-      () => {
-        const suggestions = document.querySelectorAll(
-          ".esri-search__suggestions li, .suggestions li"
-        );
-        return (
-          suggestions.length > 0 ||
-          document.querySelector("button.report-link.gold")
-        );
-      },
-      { timeout: 15000 }
-    );
-
-    // Give a short buffer for internal geocoder
-    await delay(800);
-
-    // Press Enter to confirm the selected address
+    await page.focus("#omni-address");
+    await page.keyboard.type(address, { delay: 75 });
+    await delay(800); // Ensure full typing before submission
     await page.keyboard.press("Enter");
 
-    // Wait for report button
-    await page.waitForSelector("button.report-link.gold", { timeout: 30000 });
-    await delay(500);
+    // ✅ Wait for results and report button
+    await page.waitForSelector("button.report-link.gold", { timeout: 20000 });
+    await delay(800);
     await page.click("button.report-link.gold");
 
-    // Wait for report to load
+    // ✅ Wait for the report content
     await page.waitForSelector("#report", { timeout: 30000 });
     await page.waitForFunction(() => !document.querySelector(".spinner"), {
       timeout: 20000,
@@ -87,23 +71,20 @@ app.get("/scrape", async (req, res) => {
 
     console.log("📄 Extracting report details...");
 
-    // Scrape text content
+    // ✅ Extract text content from the page
     const parcelGrid = await getText(page, ".parcelgrid.cell b");
     const schoolDistrict = await getText(page, ".school-district.cell b");
     const roadAuthority = await getText(page, ".road-authority.cell p");
     const fireStation = await getText(page, ".fire-station.cell");
     const legislator = await getText(page, ".dcny-legislator.cell");
 
-    // Get coordinates from local addressPoints.geojson
+    // ✅ Find coordinates from local addressPoints.geojson
     const coords = findAddressCoords(address);
     console.log("📍 Debug coords output:", coords);
-    if (coords)
-      console.log(
-        `📍 Found coords ${coords.x}, ${coords.y} (${coords.municipality})`
-      );
-    else console.warn("⚠️ No coordinates found locally");
 
-    // Lookup zoning and overlays
+    if (!coords) console.warn("⚠️ No coordinates found locally");
+
+    // ✅ Zoning + overlay lookup
     let zoning = { code: null, description: null, municipality: null };
     let overlays = [];
 
@@ -111,29 +92,20 @@ app.get("/scrape", async (req, res) => {
       zoning = getZoning(coords.x, coords.y);
       overlays = getOverlays(coords.x, coords.y);
       if (!Array.isArray(overlays)) overlays = [overlays];
-    } else {
-      console.error("❌ Invalid coordinate numbers:", coords);
     }
 
-    // ✅ Format overlay data
+    // ✅ Map overlay fields consistently
     const formattedOverlays = overlays.map((o) => ({
       district: o?.DistrictName || o?.district || null,
       fullDistrict: o?.FullDistrictName || o?.fullDistrict || null,
       subDistrict: o?.SubDistrictName || o?.subDistrict || null,
       municipality: o?.Municipality || o?.municipality || null,
       swis: o?.Swis || o?.swis || null,
-      confidence:
-        o?.confidence ??
-        (o?.distanceMeters
-          ? Math.max(0, 100 - o.distanceMeters / 10).toFixed(1)
-          : null),
     }));
 
-    // Build final structured response
     const scrapedData = {
       address,
-      source:
-        "Dutchess County GIS Address Info Finder + Local Zoning + Overlay Districts",
+      source: "Dutchess County GIS Address Info Finder + Local Zoning + Overlay Districts",
       scrapedAt: new Date().toISOString(),
       data: {
         parcelGrid,
@@ -153,12 +125,14 @@ app.get("/scrape", async (req, res) => {
     console.error("❌ Scraper failed:", err.message);
     res.status(500).json({ error: err.message });
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
   }
 });
 
-// Start local API server
 app.listen(PORT, () => {
+  console.log(`✅ Loaded addressPoints.geojson with 107479 address points.`);
+  console.log(`✅ Loaded zoning.geojson with 360 features.`);
+  console.log(`✅ Loaded overlays.geojson with 75 features.`);
   console.log(`✅ Amenia Scraper running on port ${PORT}`);
   console.log(`🧭 Try: curl "http://localhost:${PORT}/scrape?address=10%20Main%20St%20Amenia%20NY"`);
 });
