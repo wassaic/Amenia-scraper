@@ -1,3 +1,4 @@
+// utils/zoning.js
 import fs from "fs";
 import path from "path";
 import * as turf from "@turf/turf";
@@ -14,30 +15,18 @@ try {
 }
 
 /**
- * Lookup zoning information for given coordinates.
- * @param {number} x - Longitude
- * @param {number} y - Latitude
- * @returns {object} - Zoning info { code, description, municipality }
+ * Return zoning data for given coordinates
  */
-export function getZoning(x, y) {
-  if (!zoningData) return { code: null, description: null, municipality: null };
+export function getZoningForCoords(lon, lat, data = zoningData) {
+  if (!data) return null;
+  const point = turf.point([lon, lat]);
+  const match = data.features.find(f => turf.booleanPointInPolygon(point, f));
+  if (!match) return null;
 
-  const point = turf.point([x, y]);
-
-  for (const feature of zoningData.features) {
-    try {
-      if (turf.booleanPointInPolygon(point, feature.geometry)) {
-        return {
-          code: feature.properties?.Zone_Label || feature.properties?.ZONE_CODE || null,
-          description: feature.properties?.Zone_Description || feature.properties?.ZONE_DESC || null,
-          municipality: feature.properties?.Municipality || feature.properties?.TOWN || null
-        };
-      }
-    } catch {
-      // skip invalid polygon
-    }
-  }
-
-  // No match found
-  return { code: null, description: null, municipality: null };
+  const props = match.properties || {};
+  return {
+    code: props.Zone_Label || props.ZONE_CODE || null,
+    description: props.Zone_Description || props.ZONE_DESC || null,
+    municipality: props.Municipality || props.TOWN || null
+  };
 }
