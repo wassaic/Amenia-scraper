@@ -1,32 +1,21 @@
 {
   "name": "amenia-scraper",
   "version": "1.0.0",
-  "description": "Amenia Scraper API – pulls parcel ID and zoning/overlay info from Dutchess County GIS and local GeoJSON",
-  "type": "module",
+  "description": "A scraper for Dutchess County GIS with Amenia zoning and overlay lookups.",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "start": "node --max-old-space-size=2048 index.js"
-  },
-  "dependencies": {
-    "@sparticuz/chromium": "^119.0.0",
-    "@turf/turf": "^6.5.0",
-    "express": "^4.19.2",
-    "puppeteer": "^24.29.1",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "start": "node index.js",
+    "dev": "NODE_ENV=development node index.js"
   },
   "engines": {
     "node": "20.x"
   },
-  "keywords": [
-    "puppeteer",
-    "express",
-    "scraper",
-    "amenia",
-    "zoning",
-    "chromium",
-    "render"
-  ],
-  "author": "Jeff Barnett-Winsby",
-  "license": "MIT"
+  "dependencies": {
+    "@turf/turf": "^7.2.0",
+    "express": "^4.19.2",
+    "puppeteer": "^22.11.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
 }
