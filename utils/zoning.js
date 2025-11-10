@@ -15,23 +15,27 @@ export function getZoning(x, y) {
 
   const point = turf.point([xNum, yNum]);
 
-  // Check direct match
+  // Direct match first
   let match = zoningData.features.find(f => turf.booleanPointInPolygon(point, f));
 
-  // 🧭 If not found, try with small buffer (10 meters)
+  // If not found, try buffered search (25 meters)
   if (!match) {
-    const bufferedPoint = turf.buffer(point, 0.0001, { units: "degrees" });
+    const bufferedPoint = turf.buffer(point, 0.00025, { units: "degrees" });
     match = zoningData.features.find(f => turf.booleanIntersects(bufferedPoint, f));
   }
 
   if (!match) {
     console.warn("⚠️ No zoning match found for coords:", { xNum, yNum });
-    return null;
+    return {
+      code: null,
+      description: null,
+      municipality: "Amenia"
+    };
   }
 
   return {
     code: match.properties?.District || match.properties?.ZoningCode || null,
     description: match.properties?.ZoningDescription || match.properties?.DistrictName || null,
-    municipality: match.properties?.Municipality || null,
+    municipality: match.properties?.Municipality || "Amenia",
   };
 }
