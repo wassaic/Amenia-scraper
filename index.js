@@ -6,9 +6,17 @@ import fs from "fs";
 import path from "path";
 
 // --- Load local data files ---
-import zoningData from "./utils/zoning.geojson" assert { type: "json" };
-import overlaysData from "./utils/overlays.geojson" assert { type: "json" };
-import addressPoints from "./utils/addressPoints.geojson" assert { type: "json" };
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load GeoJSON files manually
+const zoningData = JSON.parse(fs.readFileSync(path.join(__dirname, "utils/zoning.geojson"), "utf-8"));
+const overlaysData = JSON.parse(fs.readFileSync(path.join(__dirname, "utils/overlays.geojson"), "utf-8"));
+const addressPoints = JSON.parse(fs.readFileSync(path.join(__dirname, "utils/addressPoints.geojson"), "utf-8"));
 
 // --- Server setup ---
 const app = express();
