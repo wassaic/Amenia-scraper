@@ -8,9 +8,10 @@
     "start": "node --max-old-space-size=2048 index.js"
   },
   "dependencies": {
-    "@sparticuz/chromium": "^123.0.1",
+    "@sparticuz/chromium": "^122.0.0",
     "@turf/turf": "^6.5.0",
     "express": "^4.19.2",
+    "JSONStream": "^1.3.5",
     "puppeteer-core": "^22.15.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
