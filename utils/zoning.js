@@ -1,20 +1,20 @@
 import fs from "fs";
 import * as turf from "@turf/turf";
 
+// Load the zoning GeoJSON file
 const zoningData = JSON.parse(fs.readFileSync("./utils/zoning.geojson", "utf8"));
 console.log(`✅ Loaded zoning.geojson with ${zoningData.features.length} features.`);
 
-export function getZoningForCoords(coords) {
-  const point = turf.point([coords.x, coords.y]);
-  const feature = zoningData.features.find((f) =>
-    turf.booleanPointInPolygon(point, f)
-  );
+// Main function to find the zoning district for given coordinates
+export function getZoning(x, y) {
+  const point = turf.point([x, y]);
+  const match = zoningData.features.find((f) => turf.booleanPointInPolygon(point, f));
 
-  if (!feature) return { code: null, description: null, municipality: null };
+  if (!match) return null;
 
   return {
-    code: feature.properties.Zone_Label || null,
-    description: feature.properties.Zone_Description || null,
-    municipality: feature.properties.Municipality || null,
+    code: match.properties.ZoningCode || null,
+    description: match.properties.ZoningDesc || null,
+    municipality: match.properties.Municipality || null,
   };
 }
