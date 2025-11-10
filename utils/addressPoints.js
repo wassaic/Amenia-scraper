@@ -1,32 +1,22 @@
-// utils/addressPoints.js
 import fs from "fs";
-import path from "path";
-import JSONStream from "JSONStream";
 
-const addrPath = path.resolve("./utils/addressPoints.geojson");
+const addrData = JSON.parse(fs.readFileSync("./utils/addressPoints.geojson", "utf8"));
+console.log(`✅ Loaded addressPoints.geojson with ${addrData.features.length} address points.`);
 
-export async function findAddressCoords(searchAddress) {
-  return new Promise((resolve, reject) => {
-    const stream = fs.createReadStream(addrPath, { encoding: "utf8" });
-    const parser = JSONStream.parse("features.*");
-
-    let found = null;
-    stream.pipe(parser);
-
-    parser.on("data", feature => {
-      const fullAddr = feature.properties.FULLADDRESS?.toUpperCase() || "";
-      if (fullAddr.includes(searchAddress.toUpperCase())) {
-        found = {
-          x: feature.geometry.coordinates[0],
-          y: feature.geometry.coordinates[1],
-          fullAddress: feature.properties.FULLADDRESS,
-          municipality: feature.properties.MUNICIPALITY
-        };
-        stream.destroy(); // stop reading once found
-      }
-    });
-
-    parser.on("end", () => resolve(found));
-    parser.on("error", reject);
+export function findAddressCoords(address) {
+  const clean = address.toUpperCase().replace(/\s+/g, " ").trim();
+  const match = addrData.features.find((f) => {
+    const a = f.properties.FULLADDRESS?.toUpperCase().trim();
+    return a && clean.includes(a);
   });
+
+  if (!match) return null;
+
+  const [x, y] = match.geometry.coordinates;
+  return {
+    x,
+    y,
+    fullAddress: match.properties.FULLADDRESS,
+    municipality: match.properties.MUNICIPALITY,
+  };
 }

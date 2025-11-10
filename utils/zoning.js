@@ -1,32 +1,20 @@
-// utils/zoning.js
 import fs from "fs";
-import path from "path";
 import * as turf from "@turf/turf";
 
-const zoningPath = path.resolve("./utils/zoning.geojson");
-let zoningData = null;
+const zoningData = JSON.parse(fs.readFileSync("./utils/zoning.geojson", "utf8"));
+console.log(`✅ Loaded zoning.geojson with ${zoningData.features.length} features.`);
 
-try {
-  const raw = fs.readFileSync(zoningPath, "utf8");
-  zoningData = JSON.parse(raw);
-  console.log(`✅ Loaded zoning.geojson with ${zoningData.features.length} features.`);
-} catch (err) {
-  console.error("❌ Failed to load zoning.geojson:", err.message);
-}
+export function getZoningForCoords(coords) {
+  const point = turf.point([coords.x, coords.y]);
+  const feature = zoningData.features.find((f) =>
+    turf.booleanPointInPolygon(point, f)
+  );
 
-/**
- * Return zoning data for given coordinates
- */
-export function getZoningForCoords(lon, lat, data = zoningData) {
-  if (!data) return null;
-  const point = turf.point([lon, lat]);
-  const match = data.features.find(f => turf.booleanPointInPolygon(point, f));
-  if (!match) return null;
+  if (!feature) return { code: null, description: null, municipality: null };
 
-  const props = match.properties || {};
   return {
-    code: props.Zone_Label || props.ZONE_CODE || null,
-    description: props.Zone_Description || props.ZONE_DESC || null,
-    municipality: props.Municipality || props.TOWN || null
+    code: feature.properties.Zone_Label || null,
+    description: feature.properties.Zone_Description || null,
+    municipality: feature.properties.Municipality || null,
   };
 }
