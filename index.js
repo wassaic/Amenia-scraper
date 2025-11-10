@@ -67,27 +67,31 @@ await page.type("#omni-address", address, { delay: 100 });
 await page.waitForFunction(
   () => {
     const suggestions = document.querySelectorAll(".esri-search__suggestions li, .suggestions li");
-    return suggestions.length > 0 || document.querySelector(".report-link.gold");
+    return suggestions.length > 0 || document.querySelector("button.report-link.gold");
   },
   { timeout: 15000 }
 );
 
-// Give a short buffer time for internal geocoder
-await page.waitForTimeout(800);
+// Give a short buffer for the internal geocoder
+await new Promise(resolve => setTimeout(resolve, 800));
 
 // Press Enter to confirm the selected address
 await page.keyboard.press("Enter");
 
-// Wait for the report button to appear — but only click once ready
+// Wait for the report button to appear
 await page.waitForSelector("button.report-link.gold", { timeout: 30000 });
-await page.waitForTimeout(500);
+await new Promise(resolve => setTimeout(resolve, 500));
+
+// Now click the report button safely
 await page.click("button.report-link.gold");
 
-// Wait for report section to render
+// Wait for the report section to render
 await page.waitForSelector("#report", { timeout: 30000 });
 await page.waitForFunction(() => !document.querySelector(".spinner"), {
   timeout: 20000,
 });
+
+
     console.log("📄 Extracting report details...");
 
     // Scrape report data
