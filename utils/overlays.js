@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import * as turf from "@turf/turf";
 
-// ✅ Build absolute path (macOS + Render)
+// ✅ Build absolute path
 const overlayPath = path.resolve(
   path.dirname(new URL(import.meta.url).pathname),
   "overlays.geojson"
@@ -20,9 +20,7 @@ try {
 
 /**
  * Lookup overlay districts for given coordinates.
- * @param {number} x - Longitude
- * @param {number} y - Latitude
- * @returns {Array<object>} - Overlay results
+ * Detects full or partial inclusion within overlay polygons.
  */
 export function getOverlays(x, y) {
   if (!overlayData) {
@@ -38,35 +36,29 @@ export function getOverlays(x, y) {
   }
 
   const point = turf.point([xNum, yNum]);
-  console.log(`📍 Checking overlays for coordinates: ${xNum}, ${yNum}`);
+  const bufferedPoint = turf.buffer(point, 20, { units: "meters" }); // small buffer for partial touch detection
 
-  const matches = overlayData.features.filter((f) => {
-    try {
-      return turf.booleanPointInPolygon(point, f.geometry);
-    } catch {
-      return false;
-    }
-  });
+  const matches = overlayData.features
+    .map((f) => {
+      try {
+        const fullInside = turf.booleanPointInPolygon(point, f.geometry);
+        const touches = turf.booleanIntersects(bufferedPoint, f.geometry);
+        if (fullInside || touches) {
+          const props = f.properties || {};
+          return {
+            district: props.DistrictName || null,
+            fullDistrict: props.FullDistrictName || null,
+            subDistrict: props.SubDistrictName || null,
+            municipality: props.Municipality || null,
+            swis: props.Swis || null,
+            partial: !fullInside && touches, // flag partial intersections
+          };
+        }
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
 
-  if (matches.length > 0) {
-    matches.forEach((f) => {
-      const props = f.properties || {};
-      console.log(
-        `🏞️ Overlay match found: ${props.FullDistrictName || props.DistrictName || "Unnamed Overlay"}`
-      );
-    });
-  } else {
-    console.warn(`⚠️ No overlay match found for coordinates: ${xNum}, ${yNum}`);
-  }
-
-  return matches.map((f) => {
-    const props = f.properties || {};
-    return {
-      district: props.DistrictName || null,
-      fullDistrict: props.FullDistrictName || null,
-      subDistrict: props.SubDistrictName || null,
-      municipality: props.Municipality || null,
-      swis: props.Swis || null,
-    };
-  });
+  return matches;
 }
