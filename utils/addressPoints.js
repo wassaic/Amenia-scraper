@@ -1,49 +1,47 @@
 // utils/addressPoints.js
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import url from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const addrPath = path.resolve(__dirname, "addressPoints.geojson");
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+const addrPath = path.join(__dirname, "addressPoints.geojson");
 
 let addrData = null;
 try {
-  const raw = fs.readFileSync(addrPath, "utf8");
-  addrData = JSON.parse(raw);
-  console.log(`✅ Loaded addressPoints.geojson with ${addrData.features.length} address points.`);
+  if (fs.existsSync(addrPath)) {
+    const raw = fs.readFileSync(addrPath, "utf8");
+    addrData = JSON.parse(raw);
+    console.log(`✅ Loaded addressPoints.geojson with ${addrData.features.length} address points.`);
+  } else {
+    console.error(`❌ addressPoints.geojson not found at ${addrPath}`);
+  }
 } catch (err) {
   console.error("❌ Failed to load addressPoints.geojson:", err.message);
 }
 
-/**
- * Finds coordinates for a given address (case-insensitive)
- */
 export function findAddressCoords(address) {
   if (!addrData) return null;
 
   const normalized = address.toLowerCase().replace(/[\.,]/g, "");
-  const match = addrData.features.find(
-    (f) =>
-      f.properties &&
-      f.properties.FULLADDRESS &&
-      normalized.includes(
-        f.properties.FULLADDRESS.toLowerCase().replace(/[\.,]/g, "")
-      )
+  const match = addrData.features.find(f =>
+    f.properties?.FULLADDRESS &&
+    normalized.includes(f.properties.FULLADDRESS.toLowerCase().replace(/[\.,]/g, ""))
   );
 
-  if (!match || !match.geometry || !Array.isArray(match.geometry.coordinates)) {
-    console.warn(`⚠️ No coordinate match for ${address}`);
+  if (!match) {
+    console.warn(`⚠️ No address match found for: ${address}`);
     return null;
   }
 
-  const [xRaw, yRaw] = match.geometry.coordinates;
-  const x = parseFloat(xRaw);
-  const y = parseFloat(yRaw);
+  const coords = match.geometry?.coordinates;
+  if (!coords || coords.length < 2) {
+    console.warn(`⚠️ Invalid geometry for: ${match.properties.FULLADDRESS}`);
+    return null;
+  }
 
+  const [x, y] = coords.map(Number);
   if (isNaN(x) || isNaN(y)) {
-    console.warn(`⚠️ Invalid coordinate data for ${address}:`, match.geometry.coordinates);
+    console.warn(`⚠️ Non-numeric coordinates for: ${match.properties.FULLADDRESS}`);
     return null;
   }
 
