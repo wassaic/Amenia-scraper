@@ -57,17 +57,16 @@ app.get("/scrape", async (req, res) => {
       waitUntil: "domcontentloaded",
     });
 
-    // Enter address
-    await page.waitForSelector("#omni-address", { timeout: 20000 });
+    // Type address
+    await page.waitForSelector("#omni-address", { timeout: 15000 });
     await page.type("#omni-address", address, { delay: 50 });
     await page.keyboard.press("Enter");
 
-    // Wait for the “Generate Report” button and click it
-    await page.waitForSelector("button.report-link.gold", { timeout: 25000 });
-    await page.waitForTimeout(1500);
+    // Wait for the report button
+    await page.waitForSelector("button.report-link.gold", { timeout: 20000 });
     await page.click("button.report-link.gold");
 
-    // Wait for report to load
+    // Wait for report content
     await page.waitForSelector("#report", { timeout: 30000 });
     await page.waitForFunction(() => !document.querySelector(".spinner"), {
       timeout: 20000,
