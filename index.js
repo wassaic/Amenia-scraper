@@ -4,28 +4,25 @@ import express from "express";
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Root route – confirms service is live
+// Health check route
 app.get("/", (req, res) => {
-  res.send("✅ Amenia Scraper API is live on Render!");
+  res.send("✅ Amenia Scraper API is live and ready!");
 });
 
-// Scrape route – this is what GPT or cURL will call
-app.get("/scrape", async (req, res) => {
+// Working /scrape route
+app.get("/scrape", (req, res) => {
   const address = req.query.address;
   if (!address) {
     return res.status(400).json({ error: "Missing ?address parameter" });
   }
 
-  // TEMPORARY placeholder response
-  // (You can later plug in real zoning + overlay logic)
   res.json({
-    success: true,
     address,
-    message: "✅ /scrape route is responding correctly on Render!"
+    message: "✅ /scrape endpoint is working properly on Render!"
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+// Start the server
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ Server is running on port ${PORT}`);
 });
