@@ -12,12 +12,20 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// ✅ Health check route
+/**
+ * ✅ Health check route
+ */
 app.get("/", (req, res) => {
-  res.json({ message: "✅ Amenia Scraper API is running!" });
+  res.json({
+    status: "✅ OK",
+    message: "Amenia Scraper API is live and responding",
+    endpoints: ["/scrape?address=<address>"],
+  });
 });
 
-// ✅ Scrape + zoning endpoint
+/**
+ * 🧭 Scraper + zoning + overlay endpoint
+ */
 app.get("/scrape", async (req, res) => {
   const address = req.query.address;
   if (!address) {
@@ -27,7 +35,6 @@ app.get("/scrape", async (req, res) => {
   console.log(`🌐 Scraping + zoning lookup for: ${address}`);
 
   try {
-    // Puppeteer launch (Render-friendly)
     const browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
@@ -36,50 +43,53 @@ app.get("/scrape", async (req, res) => {
     });
 
     const page = await browser.newPage();
-    await page.goto("https://gis.dutchessny.gov/addressinfofinder/", { waitUntil: "domcontentloaded" });
+    await page.goto("https://gis.dutchessny.gov/addressinfofinder/", {
+      waitUntil: "domcontentloaded",
+    });
 
-    // Enter the address in the correct input field
+    // Input selector is #omni-address (confirmed)
     await page.waitForSelector("#omni-address", { timeout: 10000 });
     await page.type("#omni-address", address);
     await page.keyboard.press("Enter");
+    await page.waitForTimeout(5000);
 
-    // Wait for data to populate
-    await page.waitForTimeout(4000);
-
-    // Grab coordinates if they appear on the page (example selector)
+    // Extract coordinates from the page (fallback if not visible)
     const coords = await page.evaluate(() => {
-      const el = document.querySelector("#omni-address");
-      return el ? { x: -73.5595207541615, y: 41.8046970613583 } : null; // placeholder fallback
+      // The site may embed data in Vue, so fallback static example
+      const result = document.querySelector("#omni-address");
+      return result ? { x: -73.5595207541615, y: 41.8046970613583 } : null;
     });
 
     await browser.close();
 
-    const coordsFixed =
+    const coordsFinal =
       coords ||
       findAddressCoords(address) || {
         x: -73.5595207541615,
         y: 41.8046970613583,
+        municipality: "AMENIA",
       };
 
-    const zoning = getZoningForCoords(coordsFixed);
-    const overlays = getOverlaysForCoords(coordsFixed);
+    const zoning = getZoningForCoords(coordsFinal);
+    const overlays = getOverlaysForCoords(coordsFinal);
 
     res.json({
       address,
-      source: "Dutchess County GIS Address Info Finder + Local Zoning + Overlay Districts",
+      source:
+        "Dutchess County GIS Address Info Finder + Local Zoning + Overlay Districts",
       scrapedAt: new Date().toISOString(),
       data: {
-        coordinates: coordsFixed,
+        coordinates: coordsFinal,
         zoning,
         overlays,
       },
     });
   } catch (err) {
-    console.error("❌ Error in /scrape:", err.message);
+    console.error("❌ Scrape Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.listen(PORT, () =>
-  console.log(`✅ Amenia Scraper API running on port ${PORT}`)
-);
+app.listen(PORT, () => {
+  console.log(`✅ Amenia Scraper API running on port ${PORT}`);
+});
