@@ -1,9 +1,8 @@
-// utils/zoning.js
 import fs from "fs";
 import path from "path";
 import * as turf from "@turf/turf";
 
-// ✅ Build path relative to this file, safe for Render
+// Resolve file path properly for Render
 const zoningPath = path.resolve(
   path.dirname(new URL(import.meta.url).pathname),
   "zoning.geojson"
@@ -19,38 +18,34 @@ try {
 }
 
 /**
- * Finds zoning information for given coordinates (x, y)
+ * Get zoning info for given WGS84 coordinates
  */
 export function getZoning(x, y) {
-  const xNum = parseFloat(x);
-  const yNum = parseFloat(y);
-
-  console.log("📊 Zoning input types:", typeof x, typeof y);
-  console.log("📊 Parsed zoning coords:", xNum, yNum);
+  const xNum = Number(x);
+  const yNum = Number(y);
 
   if (Number.isNaN(xNum) || Number.isNaN(yNum)) {
-    console.error("❌ Invalid coordinate numbers passed to getZoning:", { x, y });
+    console.error("❌ Invalid zoning coordinates:", { x, y });
     return null;
   }
 
   const point = turf.point([xNum, yNum]);
-  const match = zoningData?.features.find((f) => {
-    try {
-      return turf.booleanPointInPolygon(point, f);
-    } catch (err) {
-      console.error("⚠️ Error testing zoning polygon:", err.message);
-      return false;
-    }
-  });
+
+  // buffer ~15 meters in case parcel straddles a zone border
+  const buffer = turf.buffer(point, 0.015, { units: "kilometers" });
+
+  const match = zoningData.features.find(f =>
+    turf.booleanIntersects(buffer, f)
+  );
 
   if (!match) {
     console.warn("⚠️ No zoning match found for coordinates:", { xNum, yNum });
-    return null;
+    return { code: null, description: null, municipality: null };
   }
 
   return {
     code: match.properties?.CODE || null,
-    description: match.properties?.DESCRIPTION || null,
-    municipality: match.properties?.MUNICIPALITY || null,
+    description: match.properties?.DESCRIPTION || match.properties?.ZONEDESC || null,
+    municipality: match.properties?.MUNICIPALITY || null
   };
 }
