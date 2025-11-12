@@ -5,11 +5,17 @@ services:
     region: oregon
     plan: free
     buildCommand: |
+      export PUPPETEER_CACHE_DIR=/opt/render/project/src/.cache/puppeteer
+      mkdir -p "$PUPPETEER_CACHE_DIR"
       npm install
       npx puppeteer browsers install chrome@stable
-    startCommand: npm start
+    startCommand: |
+      export PUPPETEER_CACHE_DIR=/opt/render/project/src/.cache/puppeteer
+      npm start
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/project/src/.cache/puppeteer
