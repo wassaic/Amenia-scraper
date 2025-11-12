@@ -2,6 +2,8 @@ import express from "express";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import pkg from "puppeteer";
+import fs from "fs";
+
 const { executablePath } = pkg;
 
 import { findAddressCoords } from "./utils/addressPoints.js";
@@ -16,6 +18,43 @@ puppeteer.use(StealthPlugin());
 
 // Helper delay function
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// 🧭 Smart Chromium launcher — automatically finds the correct path
+function findChromiumPath() {
+  // 1️⃣ Try Puppeteer’s internal path
+  try {
+    const path = executablePath();
+    if (path && fs.existsSync(path)) {
+      console.log(`✅ Using Puppeteer bundled Chromium: ${path}`);
+      return path;
+    }
+  } catch (err) {
+    console.warn("⚠️ Puppeteer executablePath not found:", err.message);
+  }
+
+  // 2️⃣ Check environment variable (Render / Docker)
+  if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+    console.log(`✅ Using PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+
+  // 3️⃣ Try common Linux system locations
+  const possiblePaths = [
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/snap/bin/chromium",
+    "/usr/lib/chromium/chrome",
+  ];
+
+  for (const path of possiblePaths) {
+    if (fs.existsSync(path)) {
+      console.log(`✅ Found system Chromium at: ${path}`);
+      return path;
+    }
+  }
+
+  throw new Error("❌ Chromium executable not found — please install or set PUPPETEER_EXECUTABLE_PATH.");
+}
 
 // Utility to safely extract text from the page
 async function getText(page, selector) {
@@ -38,12 +77,8 @@ app.get("/scrape", async (req, res) => {
 
   let browser;
   try {
-    // ✅ Smart Chromium path for both local and Render
-    const chromePath =
-      process.env.PUPPETEER_EXECUTABLE_PATH ||
-      (process.env.NODE_ENV === "production"
-        ? "/usr/bin/chromium"
-        : executablePath());
+    // 🧠 Use the smart Chromium path finder
+    const chromePath = findChromiumPath();
 
     browser = await puppeteer.launch({
       headless: true,
