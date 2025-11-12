@@ -18,19 +18,30 @@ const PORT = process.env.PORT || 10000;
 // Simple delay helper
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const isExecutable = (candidate) => {
+  try {
+    const stats = fs.statSync(candidate);
+    if (!stats.isFile()) return false;
+    fs.accessSync(candidate, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const resolveChromiumPath = () => {
   const candidates = [
+    executablePath(),
     process.env.PUPPETEER_EXECUTABLE_PATH,
     process.env.CHROME_PATH,
     "/usr/bin/chromium",
     "/usr/bin/chromium-browser",
     "/usr/bin/google-chrome",
     "/usr/bin/google-chrome-stable",
-    executablePath(),
   ].filter(Boolean);
 
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
+    if (isExecutable(candidate)) return candidate;
   }
 
   return null;
