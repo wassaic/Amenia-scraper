@@ -33,12 +33,14 @@ services:
         lsb-release \
         wget
       rm -rf /var/lib/apt/lists/*
-      export PUPPETEER_CACHE_DIR=/opt/render/.cache/puppeteer
+      export PUPPETEER_CACHE_DIR=/opt/render/project/src/.cache/puppeteer
+      export PUPPETEER_DOWNLOAD_PATH=$PUPPETEER_CACHE_DIR
       mkdir -p "$PUPPETEER_CACHE_DIR"
       npm install
       npx puppeteer browsers install chrome@stable
     startCommand: |
-      export PUPPETEER_CACHE_DIR=/opt/render/.cache/puppeteer
+      export PUPPETEER_CACHE_DIR=/opt/render/project/src/.cache/puppeteer
+      export PUPPETEER_DOWNLOAD_PATH=$PUPPETEER_CACHE_DIR
       npm start
     envVars:
       - key: NODE_ENV
@@ -46,4 +48,6 @@ services:
       - key: PORT
         value: 10000
       - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/.cache/puppeteer
+        value: /opt/render/project/src/.cache/puppeteer
+      - key: PUPPETEER_DOWNLOAD_PATH
+        value: /opt/render/project/src/.cache/puppeteer

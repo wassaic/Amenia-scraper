@@ -1,6 +1,7 @@
 FROM node:20-bullseye
 WORKDIR /opt/render/project/src
-ENV PUPPETEER_CACHE_DIR=/opt/render/.cache/puppeteer \
+ENV PUPPETEER_CACHE_DIR=/opt/render/project/src/.cache/puppeteer \
+    PUPPETEER_DOWNLOAD_PATH=/opt/render/project/src/.cache/puppeteer \
     NODE_ENV=production \
     PORT=10000
 RUN apt-get update \
