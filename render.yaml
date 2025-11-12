@@ -2,15 +2,16 @@ services:
   - type: web
     name: amenia-scraper-api
     env: node
+    region: oregon
     plan: free
     buildCommand: |
       apt-get update
       apt-get install -y chromium
       npm install
     startCommand: |
-      PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium node index.js
+      PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: /usr/bin/chromium
+      - key: PORT
+        value: 10000
