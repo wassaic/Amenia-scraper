@@ -1,0 +1,43 @@
+{
+  // ✅ Auto-format on save
+  "editor.formatOnSave": true,
+
+  // ✅ Use Prettier as the default formatter
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+  // ✅ Use 2-space indentation
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+
+  // ✅ Autosave after a short delay
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 800,
+
+  // ✅ Make terminal behave like macOS Terminal
+  "terminal.integrated.scrollback": 10000,
+  "terminal.integrated.cursorStyle": "block",
+  "terminal.integrated.fontSize": 13,
+  "terminal.integrated.fontFamily": "Menlo, Monaco, 'Courier New', monospace",
+  "terminal.integrated.copyOnSelection": true,
+
+  // ✅ Keep Node.js version hints consistent
+  "npm.nodeVersionHint": "20.x",
+
+  // ✅ Enable ESLint support
+  "eslint.validate": ["javascript"],
+  "eslint.alwaysShowStatus": true,
+
+  // ✅ Format JS and JSON with Prettier
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // ✅ Optional visual tweaks
+  "workbench.colorTheme": "Default Dark+",
+  "workbench.iconTheme": "vscode-icons",
+  "editor.minimap.enabled": true,
+  "editor.renderWhitespace": "boundary"
+}

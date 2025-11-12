@@ -11,13 +11,13 @@ import { getOverlays } from "./utils/overlays.js";
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// 🕵️ Enable stealth mode to mimic real browser behavior
+// 🕵️ Enable stealth mode
 puppeteer.use(StealthPlugin());
 
-// Simple async delay helper
+// Helper delay function
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Utility: safely extract text from a selector
+// Utility to safely extract text from the page
 async function getText(page, selector) {
   try {
     await page.waitForSelector(selector, { timeout: 10000 });
@@ -38,11 +38,11 @@ app.get("/scrape", async (req, res) => {
 
   let browser;
   try {
-    // ✅ Smart executablePath for both local + Render environments
+    // ✅ Smart Chromium path for both local and Render
     const chromePath =
       process.env.PUPPETEER_EXECUTABLE_PATH ||
       (process.env.NODE_ENV === "production"
-        ? "/usr/bin/google-chrome-stable"
+        ? "/usr/bin/chromium"
         : executablePath());
 
     browser = await puppeteer.launch({
@@ -53,33 +53,30 @@ app.get("/scrape", async (req, res) => {
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
-        "--disable-extensions",
-        "--disable-infobars",
-        "--window-size=1920,1080",
       ],
     });
 
     const page = await browser.newPage();
     page.setDefaultNavigationTimeout(60000);
 
-    // 🧭 Navigate to Dutchess GIS site
+    // 🧭 Navigate to Dutchess GIS
     await page.goto("https://gis.dutchessny.gov/addressinfofinder/", {
       waitUntil: "domcontentloaded",
     });
 
-    // ⌨️ Type the address carefully
+    // ⌨️ Type address carefully
     await page.waitForSelector("#omni-address", { timeout: 15000 });
     await page.focus("#omni-address");
     await page.keyboard.type(address, { delay: 75 });
     await delay(800);
     await page.keyboard.press("Enter");
 
-    // Wait for the report button and click
+    // Wait for and click report button
     await page.waitForSelector("button.report-link.gold", { timeout: 25000 });
     await delay(1000);
     await page.click("button.report-link.gold");
 
-    // Wait for report content
+    // Wait for report to load
     await page.waitForSelector("#report", { timeout: 40000 });
     await page.waitForFunction(() => !document.querySelector(".spinner"), {
       timeout: 20000,
@@ -87,20 +84,20 @@ app.get("/scrape", async (req, res) => {
 
     console.log("📄 Extracting report details...");
 
-    // Extract fields from the report
+    // Scrape data
     const parcelGrid = await getText(page, ".parcelgrid.cell b");
     const schoolDistrict = await getText(page, ".school-district.cell b");
     const roadAuthority = await getText(page, ".road-authority.cell p");
     const fireStation = await getText(page, ".fire-station.cell");
     const legislator = await getText(page, ".dcny-legislator.cell");
 
-    // 🗺️ Get coordinates from local addressPoints.geojson
+    // 🗺️ Find coordinates locally
     const coords = findAddressCoords(address);
     console.log("📍 Debug coords output:", coords);
 
     if (!coords) console.warn("⚠️ No coordinates found locally");
 
-    // 🧩 Lookup zoning + overlays using local GeoJSON
+    // 🧩 Lookup zoning and overlays
     let zoning = { code: null, description: null, municipality: null };
     let overlays = [];
 
@@ -119,7 +116,7 @@ app.get("/scrape", async (req, res) => {
       swis: o?.Swis || o?.swis || null,
     }));
 
-    // ✅ Structured response
+    // ✅ Build response
     const scrapedData = {
       address,
       source:
@@ -147,7 +144,7 @@ app.get("/scrape", async (req, res) => {
   }
 });
 
-// ✅ Start the server
+// ✅ Start server
 app.listen(PORT, () => {
   console.log(`✅ Loaded addressPoints.geojson with 107479 address points.`);
   console.log(`✅ Loaded zoning.geojson with 360 features.`);
