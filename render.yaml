@@ -5,11 +5,9 @@ services:
     region: oregon
     plan: free
     buildCommand: |
-      apt-get update
-      apt-get install -y chromium
       npm install
-    startCommand: |
-      PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium npm start
+      npx puppeteer browsers install chrome@stable
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production

@@ -1,3 +1,4 @@
+import fs from "fs";
 import express from "express";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
@@ -17,6 +18,24 @@ const PORT = process.env.PORT || 10000;
 // Simple delay helper
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const resolveChromiumPath = () => {
+  const candidates = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.CHROME_PATH,
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    executablePath(),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  return null;
+};
+
 async function getText(page, selector) {
   try {
     await page.waitForSelector(selector, { timeout: 10000 });
@@ -35,10 +54,7 @@ app.get("/scrape", async (req, res) => {
   let browser;
   try {
     // ✅ Detect proper Chromium path
-    const chromePath =
-      process.env.PUPPETEER_EXECUTABLE_PATH ||
-      process.env.CHROME_PATH ||
-      executablePath();
+    const chromePath = resolveChromiumPath();
 
     console.log(`🧭 Using Chromium path: ${chromePath}`);
 
