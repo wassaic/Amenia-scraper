@@ -102,9 +102,9 @@ app.get("/scrape", async (req, res) => {
     await delay(1000);
     await page.click("button.report-link.gold");
 
-    // Wait for report to load
-    await page.waitForSelector("#report", { timeout: 30000 });
-    await page.waitForFunction(() => !document.querySelector(".spinner"), { timeout: 20000 });
+    // Wait for report to load (Render can be slow, so be generous)
+    await page.waitForSelector("#report", { timeout: 45000 });
+    await page.waitForFunction(() => !document.querySelector(".spinner"), { timeout: 45000 });
 
     console.log("📄 Extracting report details...");
 
