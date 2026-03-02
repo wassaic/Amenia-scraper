@@ -16,7 +16,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   await db.execute({
     sql: `UPDATE artworks SET
       title = ?, artist = ?, year_created = ?, medium = ?, dimensions = ?,
-      current_location = ?, price_paid = ?, date_acquired = ?, notes = ?,
+      current_location = ?, quantity = ?, price_paid = ?, date_acquired = ?, notes = ?,
       image_path = ?, updated_at = datetime('now')
     WHERE id = ?`,
     args: [
@@ -26,6 +26,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       body.medium || null,
       body.dimensions || null,
       body.current_location || null,
+      body.quantity != null && body.quantity !== '' ? Math.max(1, parseInt(body.quantity)) : 1,
       body.price_paid != null && body.price_paid !== '' ? Number(body.price_paid) : null,
       body.date_acquired || null,
       body.notes || null,

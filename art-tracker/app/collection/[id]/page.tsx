@@ -12,6 +12,7 @@ interface Artwork {
   medium: string;
   dimensions: string;
   current_location: string;
+  quantity: number;
   price_paid: number | null;
   date_acquired: string;
   notes: string;

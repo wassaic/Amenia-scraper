@@ -12,6 +12,7 @@ interface Artwork {
   medium: string;
   dimensions: string;
   current_location: string;
+  quantity: number;
   price_paid: number | null;
   date_acquired: string;
   notes: string;
@@ -78,6 +79,7 @@ export default function ArtworkDetail({ artwork }: { artwork: Artwork }) {
               { label: 'Medium', value: artwork.medium },
               { label: 'Dimensions', value: artwork.dimensions },
               { label: 'Current Location', value: artwork.current_location },
+              { label: 'Quantity', value: artwork.quantity > 1 ? String(artwork.quantity) : null },
               { label: 'Price Paid', value: artwork.price_paid != null ? `$${artwork.price_paid.toLocaleString()}` : null },
               { label: 'Date Acquired', value: artwork.date_acquired },
             ].filter(({ value }) => value).map(({ label, value }) => (

@@ -25,6 +25,7 @@ const SCHEMA = `
     medium TEXT,
     dimensions TEXT,
     current_location TEXT,
+    quantity INTEGER NOT NULL DEFAULT 1,
     price_paid REAL,
     date_acquired TEXT,
     notes TEXT,
@@ -61,6 +62,10 @@ export async function getDb() {
     for (const stmt of SCHEMA.split(';').map((s) => s.trim()).filter(Boolean)) {
       await db.execute(stmt);
     }
+    // Migration: add quantity column to existing databases that predate it
+    await db.execute(
+      `ALTER TABLE artworks ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1`
+    ).catch(() => { /* column already exists — safe to ignore */ });
     schemaInitialized = true;
   }
   return db;

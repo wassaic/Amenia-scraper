@@ -11,6 +11,7 @@ interface ArtworkData {
   medium?: string;
   dimensions?: string;
   current_location?: string;
+  quantity?: number;
   price_paid?: number | null;
   date_acquired?: string;
   notes?: string;
@@ -28,6 +29,7 @@ export default function ArtworkForm({ initial }: { initial?: ArtworkData }) {
     medium: initial?.medium ?? '',
     dimensions: initial?.dimensions ?? '',
     current_location: initial?.current_location ?? '',
+    quantity: initial?.quantity != null ? String(initial.quantity) : '1',
     price_paid: initial?.price_paid != null ? String(initial.price_paid) : '',
     date_acquired: initial?.date_acquired ?? '',
     notes: initial?.notes ?? '',
@@ -94,9 +96,14 @@ export default function ArtworkForm({ initial }: { initial?: ArtworkData }) {
         </Field>
       </div>
 
-      <Field label="Current Location">
-        <input className={input} value={form.current_location} onChange={(e) => set('current_location', e.target.value)} placeholder="e.g. Living room, east wall" />
-      </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Current Location">
+          <input className={input} value={form.current_location} onChange={(e) => set('current_location', e.target.value)} placeholder="e.g. Living room, east wall" />
+        </Field>
+        <Field label="Quantity">
+          <input className={input} type="number" min="1" step="1" value={form.quantity} onChange={(e) => set('quantity', e.target.value)} placeholder="1" />
+        </Field>
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Price Paid ($)">

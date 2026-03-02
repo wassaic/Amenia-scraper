@@ -10,6 +10,7 @@ interface Artwork {
   year_created: string;
   medium: string;
   current_location: string;
+  quantity: number;
   price_paid: number | null;
   image_path: string;
 }
@@ -39,12 +40,17 @@ export default async function CollectionPage() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {artworks.map((a) => (
             <Link key={a.id} href={`/collection/${a.id}`} className="bg-white rounded-xl border border-stone-200 overflow-hidden hover:shadow-md hover:border-amber-300 transition-all">
-              <div className="aspect-video bg-stone-100 overflow-hidden flex items-center justify-center">
+              <div className="relative aspect-video bg-stone-100 overflow-hidden flex items-center justify-center">
                 {a.image_path ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={a.image_path} alt={a.title} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-stone-300 text-4xl">🖼</span>
+                )}
+                {a.quantity > 1 && (
+                  <span className="absolute top-2 right-2 bg-stone-800/75 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                    ×{a.quantity}
+                  </span>
                 )}
               </div>
               <div className="p-4">
