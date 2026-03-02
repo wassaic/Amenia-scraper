@@ -26,8 +26,8 @@ export default async function SoldGiftedPage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const db = await getDb();
   const result = await db.execute({ sql: 'SELECT * FROM sold_gifted WHERE id = ?', args: [Number(id)] });
-  const record = result.rows[0] as unknown as SoldGiftedRecord | undefined;
-  if (!record) notFound();
+  if (!result.rows[0]) notFound();
+  const record = JSON.parse(JSON.stringify(result.rows[0])) as SoldGiftedRecord;
 
   return <SoldGiftedDetail record={record} />;
 }

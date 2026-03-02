@@ -25,8 +25,8 @@ export default async function ArtworkPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const db = await getDb();
   const result = await db.execute({ sql: 'SELECT * FROM artworks WHERE id = ?', args: [Number(id)] });
-  const artwork = result.rows[0] as unknown as Artwork | undefined;
-  if (!artwork) notFound();
+  if (!result.rows[0]) notFound();
+  const artwork = JSON.parse(JSON.stringify(result.rows[0])) as Artwork;
 
   return <ArtworkDetail artwork={artwork} />;
 }
