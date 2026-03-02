@@ -22,8 +22,9 @@ interface Artwork {
 
 export default async function ArtworkPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const db = getDb();
-  const artwork = db.prepare('SELECT * FROM artworks WHERE id = ?').get(Number(id)) as Artwork | undefined;
+  const db = await getDb();
+  const result = await db.execute({ sql: 'SELECT * FROM artworks WHERE id = ?', args: [Number(id)] });
+  const artwork = result.rows[0] as unknown as Artwork | undefined;
   if (!artwork) notFound();
 
   return <ArtworkDetail artwork={artwork} />;

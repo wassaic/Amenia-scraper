@@ -1,60 +1,67 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+import { createClient } from '@libsql/client';
 
-const DB_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DB_DIR, 'art-tracker.db');
+let client: ReturnType<typeof createClient> | null = null;
 
-if (!fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
+function getClient() {
+  if (!client) {
+    const url = process.env.TURSO_DATABASE_URL;
+    const authToken = process.env.TURSO_AUTH_TOKEN;
+
+    if (!url) {
+      throw new Error('TURSO_DATABASE_URL environment variable is not set');
+    }
+
+    client = createClient({ url, authToken });
+  }
+  return client;
 }
 
-let db: Database.Database;
+const SCHEMA = `
+  CREATE TABLE IF NOT EXISTS artworks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    artist TEXT,
+    year_created TEXT,
+    medium TEXT,
+    dimensions TEXT,
+    current_location TEXT,
+    price_paid REAL,
+    date_acquired TEXT,
+    notes TEXT,
+    image_path TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
 
-export function getDb(): Database.Database {
-  if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
-    initSchema(db);
+  CREATE TABLE IF NOT EXISTS sold_gifted (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    year_created TEXT,
+    medium TEXT,
+    dimensions TEXT,
+    recipient_name TEXT NOT NULL,
+    recipient_contact TEXT,
+    type TEXT NOT NULL,
+    price_received REAL,
+    date TEXT,
+    notes TEXT,
+    image_path TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+`;
+
+let schemaInitialized = false;
+
+export async function getDb() {
+  const db = getClient();
+  if (!schemaInitialized) {
+    // Run each statement separately (libSQL doesn't support multi-statement exec)
+    for (const stmt of SCHEMA.split(';').map((s) => s.trim()).filter(Boolean)) {
+      await db.execute(stmt);
+    }
+    schemaInitialized = true;
   }
   return db;
-}
-
-function initSchema(db: Database.Database) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS artworks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      artist TEXT,
-      year_created TEXT,
-      medium TEXT,
-      dimensions TEXT,
-      current_location TEXT,
-      price_paid REAL,
-      date_acquired TEXT,
-      notes TEXT,
-      image_path TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS sold_gifted (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      description TEXT,
-      year_created TEXT,
-      medium TEXT,
-      dimensions TEXT,
-      recipient_name TEXT NOT NULL,
-      recipient_contact TEXT,
-      type TEXT NOT NULL CHECK(type IN ('sold', 'gifted')),
-      price_received REAL,
-      date TEXT,
-      notes TEXT,
-      image_path TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
 }

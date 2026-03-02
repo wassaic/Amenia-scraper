@@ -24,8 +24,9 @@ interface SoldGiftedRecord {
 
 export default async function SoldGiftedPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const db = getDb();
-  const record = db.prepare('SELECT * FROM sold_gifted WHERE id = ?').get(Number(id)) as SoldGiftedRecord | undefined;
+  const db = await getDb();
+  const result = await db.execute({ sql: 'SELECT * FROM sold_gifted WHERE id = ?', args: [Number(id)] });
+  const record = result.rows[0] as unknown as SoldGiftedRecord | undefined;
   if (!record) notFound();
 
   return <SoldGiftedDetail record={record} />;

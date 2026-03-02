@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
-import path from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { put } from '@vercel/blob';
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
@@ -21,17 +19,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'File too large (max 10 MB)' }, { status: 400 });
   }
 
-  const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-  if (!existsSync(uploadsDir)) {
-    mkdirSync(uploadsDir, { recursive: true });
-  }
-
   const ext = file.name.split('.').pop() ?? 'jpg';
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  const filePath = path.join(uploadsDir, filename);
+  const filename = `art-tracker/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-  const bytes = await file.arrayBuffer();
-  await writeFile(filePath, Buffer.from(bytes));
+  const blob = await put(filename, file, { access: 'public' });
 
-  return NextResponse.json({ path: `/uploads/${filename}` });
+  return NextResponse.json({ path: blob.url });
 }

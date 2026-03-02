@@ -3,14 +3,14 @@ import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export default function Dashboard() {
-  const db = getDb();
-  const artworkCount = (db.prepare('SELECT COUNT(*) as c FROM artworks').get() as { c: number }).c;
-  const soldGiftedCount = (db.prepare('SELECT COUNT(*) as c FROM sold_gifted').get() as { c: number }).c;
-  const soldCount = (db.prepare("SELECT COUNT(*) as c FROM sold_gifted WHERE type = 'sold'").get() as { c: number }).c;
-  const giftedCount = (db.prepare("SELECT COUNT(*) as c FROM sold_gifted WHERE type = 'gifted'").get() as { c: number }).c;
-  const recentArtworks = db.prepare('SELECT * FROM artworks ORDER BY created_at DESC LIMIT 5').all() as Array<{ id: number; title: string; artist: string; current_location: string; image_path: string }>;
-  const recentSoldGifted = db.prepare('SELECT * FROM sold_gifted ORDER BY created_at DESC LIMIT 5').all() as Array<{ id: number; title: string; recipient_name: string; type: string; image_path: string }>;
+export default async function Dashboard() {
+  const db = await getDb();
+  const artworkCount = Number((await db.execute('SELECT COUNT(*) as c FROM artworks')).rows[0].c);
+  const soldGiftedCount = Number((await db.execute('SELECT COUNT(*) as c FROM sold_gifted')).rows[0].c);
+  const soldCount = Number((await db.execute("SELECT COUNT(*) as c FROM sold_gifted WHERE type = 'sold'")).rows[0].c);
+  const giftedCount = Number((await db.execute("SELECT COUNT(*) as c FROM sold_gifted WHERE type = 'gifted'")).rows[0].c);
+  const recentArtworks = (await db.execute('SELECT * FROM artworks ORDER BY created_at DESC LIMIT 5')).rows as unknown as Array<{ id: number; title: string; artist: string; current_location: string; image_path: string }>;
+  const recentSoldGifted = (await db.execute('SELECT * FROM sold_gifted ORDER BY created_at DESC LIMIT 5')).rows as unknown as Array<{ id: number; title: string; recipient_name: string; type: string; image_path: string }>;
 
   return (
     <div className="space-y-8">

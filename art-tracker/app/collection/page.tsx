@@ -14,9 +14,9 @@ interface Artwork {
   image_path: string;
 }
 
-export default function CollectionPage() {
-  const db = getDb();
-  const artworks = db.prepare('SELECT * FROM artworks ORDER BY created_at DESC').all() as Artwork[];
+export default async function CollectionPage() {
+  const db = await getDb();
+  const artworks = (await db.execute('SELECT * FROM artworks ORDER BY created_at DESC')).rows as unknown as Artwork[];
 
   return (
     <div className="space-y-6">

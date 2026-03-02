@@ -14,9 +14,9 @@ interface SoldGiftedRecord {
   image_path: string;
 }
 
-export default function SoldGiftedPage() {
-  const db = getDb();
-  const records = db.prepare('SELECT * FROM sold_gifted ORDER BY created_at DESC').all() as SoldGiftedRecord[];
+export default async function SoldGiftedPage() {
+  const db = await getDb();
+  const records = (await db.execute('SELECT * FROM sold_gifted ORDER BY created_at DESC')).rows as unknown as SoldGiftedRecord[];
 
   return (
     <div className="space-y-6">
